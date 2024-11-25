@@ -1,0 +1,8 @@
+.ccls-cache
+compile_commands.json
+build
+release
+temp
+modules
+Debug
+data
