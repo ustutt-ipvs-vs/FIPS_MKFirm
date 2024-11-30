@@ -10,6 +10,7 @@ Checks: "
   -google-readability-namespace-comments,
   -google-runtime-int,
   -google-runtime-references,
+  -google-explicit-constructor,
   -misc-no-recursion,
   -misc-non-private-member-variables-in-classes,
   -readability-named-parameter,
@@ -23,6 +24,9 @@ HeaderFilterRegex: '.*libtsndgm[^\/]*\/(src|benchmarks).*\/*\/.*h'
 FormatStyle:     none
 
 CheckOptions:
+  - key:    bugprone-easily-swappable-parameters.IgnoredParameterNames
+    value:  iterator;begin;end;first;last;lhs;rhs;min;max;""
+
 # Classes, structs, ...
   - key:    readability-identifier-naming.NamespaceCase
     value:  lower_case
