@@ -62,13 +62,14 @@ struct PacketDelayBudget {
   Delay propagation;
   InterFrameGap ifg;
 
-  PacketDelayBudget(const NetworkTopology &network,
-                    const DataLinkProperty &data_link,
-                    FrameSizeRange frame_size);
-  PacketDelayBudget(const NetworkTopology &network,
-                    const DataLinkProperty &data_link,
-                    FrameSizeRange frame_size, const DelayHistogram &hist,
-                    double reliability, PDBPolicy policy = MINIMIZE_INTERVAL);
+  static auto wireline_pdb(const DeviceProperty &source,
+                           const DeviceProperty &target,
+                           FrameSizeRange frame_size) -> PacketDelayBudget;
+  static auto
+  wireless_pdb(const DeviceProperty &source, const DeviceProperty &target,
+               FrameSizeRange frame_size, const DelayHistogram &hist,
+               double reliability,
+               PDBPolicy policy = MINIMIZE_INTERVAL) -> PacketDelayBudget;
 };
 using PDB = PacketDelayBudget;
 

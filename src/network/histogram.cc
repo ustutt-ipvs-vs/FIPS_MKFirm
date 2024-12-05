@@ -138,28 +138,35 @@ InterFrameGap::InterFrameGap(const DataLinkProperty &data_link) {
   }
 }
 
-PacketDelayBudget::PacketDelayBudget(const NetworkTopology &network,
-                                     const DataLinkProperty &data_link,
-                                     FrameSizeRange frame_size) {
-  ifg = InterFrameGap(data_link);
-  propagation = data_link.propagation_delay;
-  serialization =
-      (frame_size * BitsPerByte * TicksPerSec) / data_link.data_rate;
-  processing = network[data_link.target].processing_delay;
-  wireless = DelayInterval(0);
-  d_trans = wireless + serialization + ifg.delay;
-  d_total = d_trans + propagation + processing;
+auto PacketDelayBudget::wireline_pdb(
+    const DeviceProperty &source, const DeviceProperty &target,
+    FrameSizeRange frame_size) -> PacketDelayBudget {
+  const auto &data_link = source[target.id];
+  PacketDelayBudget pdb = {
+      .wireless = DelayInterval(0),
+      .processing = target.processing_delay,
+      .propagation = data_link.propagation_delay,
+      .ifg = InterFrameGap(data_link),
+  };
+
+  pdb.serialization =
+      (frame_size * BitsPerByte * TicksPerSec) / data_link.data_rate,
+  pdb.d_trans = pdb.serialization + pdb.ifg.delay;
+  pdb.d_total = pdb.d_trans + pdb.propagation + pdb.processing;
+  return pdb;
 }
 
-PacketDelayBudget::PacketDelayBudget(const NetworkTopology &network,
-                                     const DataLinkProperty &data_link,
+auto PacketDelayBudget::wireless_pdb(const DeviceProperty &source,
+                                     const DeviceProperty &target,
                                      FrameSizeRange frame_size,
                                      const DelayHistogram &hist,
-                                     double reliability, PDBPolicy policy)
-    : PacketDelayBudget(network, data_link, frame_size) {
-  wireless = hist.compute_pdb(reliability, policy);
-  d_trans = wireless + serialization + ifg.delay;
-  d_total = d_trans + propagation + processing;
+                                     double reliability,
+                                     PDBPolicy policy) -> PacketDelayBudget {
+  auto pdb = PacketDelayBudget::wireline_pdb(source, target, frame_size);
+  pdb.wireless = hist.compute_pdb(reliability, policy);
+  pdb.d_trans = pdb.serialization + pdb.ifg.delay;
+  pdb.d_total = pdb.d_trans + pdb.wireless + pdb.propagation + pdb.processing;
+  return pdb;
 }
 
 } // namespace tsndgm

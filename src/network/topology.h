@@ -4,10 +4,13 @@
 #include "../utils/interval.h"
 #include <cstddef>
 #include <filesystem>
+#include <generator>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <ranges>
 #include <string>
+#include <tl/generator.hpp>
 #include <vector>
 
 namespace tsndgm {
@@ -38,6 +41,11 @@ struct DelayInterval : public Interval<Delay> {
 struct Link {
   DeviceId source;
   DeviceId target;
+
+  auto operator<=>(const Link &other) const {
+    return source == other.source ? target <=> other.target
+                                  : source <=> other.source;
+  }
 };
 
 enum DataLinkType : std::uint8_t { WIRED, WIRELESS };
@@ -60,8 +68,13 @@ struct DeviceProperty {
   DelayInterval processing_delay;
   std::string name;
   std::vector<DataLinkProperty> out;
+
+  auto operator[](DeviceId id) const -> const DataLinkProperty &;
 };
-static DeviceProperty SOURCE(0, UNSPECIFIED, DelayInterval(0), "SOURCE");
+static DeviceProperty SOURCE(std::numeric_limits<DeviceId>::max() - 1,
+                             UNSPECIFIED, DelayInterval(0), "SOURCE");
+static DeviceProperty SINK(std::numeric_limits<DeviceId>::max(), UNSPECIFIED,
+                           DelayInterval(0), "SINK");
 
 struct NetworkTopology {
   NetworkTopology() = default;
@@ -91,11 +104,11 @@ private:
 
 using Path = std::vector<DeviceId>;
 struct RouteHop {
-  const DeviceProperty &device;
+  const DeviceProperty *device;
   std::vector<RouteHop *> parents;
   std::vector<RouteHop *> childs;
 
-  explicit RouteHop(const DeviceProperty &device) : device(device) {};
+  explicit RouteHop(const DeviceProperty *device) : device(device) {};
 
   [[nodiscard]] auto is_virtual_source() const -> bool {
     return parents.empty();
@@ -130,23 +143,32 @@ private:
   [[nodiscard]] static auto find(DeviceId id,
                                  const std::vector<RouteHop *> &hops)
       -> std::vector<RouteHop *>::const_iterator {
-    return std::ranges::find_if(hops,
-                                [&](auto hop) { return hop->device.id == id; });
+    return std::ranges::find_if(
+        hops, [&](auto hop) { return hop->device->id == id; });
   }
 };
 
+template <typename T> using Generator = tl::generator<T>;
 struct Route {
 private:
   std::map<DeviceId, RouteHop> hops_;
   std::vector<RouteHop *> listeners_;
 
   void recompute_listeners();
+  auto get_or_create(const DeviceProperty &device) -> RouteHop &;
+  void add_link(const DeviceProperty &source, const DeviceProperty &target);
 
 public:
   RouteHop source;
 
-  Route() : source({SOURCE}) {};
+  Route() : source(&SOURCE) {};
   Route(nlohmann::json &&j, const NetworkTopology &network);
+
+  Route(const Route &other);
+  Route(Route &&other) = default;
+  auto operator=(const Route &other) -> Route &;
+  auto operator=(Route &&other) -> Route & = default;
+  ~Route() = default;
 
   void add_path(const Path &path, const NetworkTopology &network,
                 bool recompute_listeners = true);
@@ -163,10 +185,17 @@ public:
     return source.childs;
   };
 
-  auto operator[](DeviceId id) -> const RouteHop & { return hops_.at(id); }
+  auto operator[](DeviceId id) const -> const RouteHop & {
+    return hops_.at(id);
+  }
   using Iterator = decltype(hops_)::const_iterator;
   [[nodiscard]] auto begin() const -> Iterator { return hops_.begin(); }
   [[nodiscard]] auto end() const -> Iterator { return hops_.end(); }
+
+  [[nodiscard]] auto traverse_links() const
+      -> Generator<std::pair<const DeviceProperty *, const DeviceProperty *>>;
+  [[nodiscard]] auto traverse_hops() const
+      -> Generator<std::pair<const RouteHop *, const RouteHop *>>;
 };
 
 } // namespace tsndgm
