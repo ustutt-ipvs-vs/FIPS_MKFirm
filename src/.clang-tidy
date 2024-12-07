@@ -17,6 +17,7 @@ Checks: "
   -readability-identifier-length,
   -readability-braces-around-statements,
   -readability-magic-numbers
+  -bugprone-chained-comparison
 "
 
 WarningsAsErrors: ''
