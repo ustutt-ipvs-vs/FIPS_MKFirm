@@ -40,6 +40,10 @@ struct StreamStorage {
 
   StreamStorage() = default;
   StreamStorage(const std::vector<Stream> &streams);
+  StreamStorage(const StreamStorage &other) = default;
+  auto operator=(const StreamStorage &) -> StreamStorage & = default;
+  StreamStorage(StreamStorage &&other) = default;
+  auto operator=(StreamStorage &&) -> StreamStorage & = default;
 
   using Iterator = decltype(streams)::const_iterator;
   [[nodiscard]] auto begin() const -> Iterator { return streams.begin(); }

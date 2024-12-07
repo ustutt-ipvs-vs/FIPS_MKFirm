@@ -6,7 +6,9 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <ostream>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace tsndgm {
@@ -71,7 +73,7 @@ auto NetworkTopology::get_data_link(Link link) const
   auto source_index = get_device_index(link.source);
   if (std::cmp_greater_equal(source_index, devices_.size())) {
     throw std::invalid_argument(
-        std::format("DeviceID does not exist: %u", link.source));
+        std::format("DeviceID does not exist: {}", link.source));
   }
   auto data_link_it =
       std::ranges::find_if(devices_[source_index].out, [&](auto &data_link) {
@@ -86,14 +88,32 @@ auto NetworkTopology::operator[](DeviceId device_id) const
   return *get_device(device_id);
 }
 
+auto NetworkTopology::at(DeviceId device_id) const -> const DeviceProperty & {
+  const auto *device_ptr = get_device(device_id);
+  if (device_ptr == nullptr) {
+    throw std::out_of_range(
+        std::format("DeviceID does not exist: {}", device_id));
+  }
+  return *device_ptr;
+}
+
 auto NetworkTopology::operator[](Link link) const -> const DataLinkProperty & {
   return *get_data_link(link);
+}
+
+auto NetworkTopology::at(Link link) const -> const DataLinkProperty & {
+  const auto *link_ptr = get_data_link(link);
+  if (link_ptr == nullptr) {
+    throw std::out_of_range(
+        std::format("Link does not exist: ({}, {})", link.source, link.target));
+  }
+  return *link_ptr;
 }
 
 void NetworkTopology::add_device(const DeviceProperty &device) {
   if (get_device(device.id) != nullptr) {
     throw std::invalid_argument(
-        std::format("DeviceID is not unique: %u", device.id));
+        std::format("DeviceID is not unique: {}", device.id));
   }
 
   devices_.push_back(device);
@@ -156,24 +176,44 @@ void Route::recompute_listeners() {
   }
 }
 
+void RouteHop::print(std::ostream &out, std::string indent,
+                     DeviceId parent) const {
+  if (is_talker() || find_parent(parent) == parents.cbegin()) {
+    std::println(out, "{}\\|-{}", indent, device->id);
+    for (auto *child : childs) {
+      if (child == childs.back()) {
+        child->print(out, indent + " ", device->id);
+      } else {
+        child->print(out, indent + "|", device->id);
+      }
+    }
+  } else {
+    std::println(out, "{}\\|-{} (elimination)", indent, device->id);
+  }
+}
+
 void Route::add_path(const Path &path, const NetworkTopology &network,
                      bool b_recompute_listeners) {
   RouteHop *parent = &source;
   for (DeviceId const id : path) {
-    if (parent->device->id == id) {
+    if (parent->device != nullptr && parent->device->id == id) {
       throw std::invalid_argument(
           "Path is invalid, containing the same hop twice");
     }
 
     if (hops_.contains(id)) {
       RouteHop &hop = hops_.at(id);
+      if (parent != &source && hop.is_talker()) {
+        source.childs.erase(source.find_child(id));
+        hop.parents.clear();
+      }
       if (!parent->has_child(id) && id != path.front()) {
         parent->childs.push_back(&hop);
         hop.parents.push_back(parent);
       }
       parent = &hop;
     } else {
-      auto it = hops_.insert({id, RouteHop(&network[id])});
+      auto it = hops_.insert({id, RouteHop(&network.at(id))});
       RouteHop &hop = it.first->second;
       hop.parents.push_back(parent);
       parent->childs.push_back(&hop);
@@ -206,24 +246,29 @@ void Route::add_link(const DeviceProperty &source,
   }
 }
 
-Route::Route(nlohmann::json &&json, const NetworkTopology &network)
-    : source(&SOURCE) {
+Route::Route(nlohmann::json &&json, const NetworkTopology &network) {
   for (auto &json_link : json) {
     add_link(Link(json_link[0], json_link[1]), network, false);
   }
   recompute_listeners();
 }
 
-Route::Route(const Route &other) : Route() {
-  for (auto [hop1, hop2] : other.traverse_hops()) {
-    add_link(*(hop1->device), *(hop2->device));
-  }
-  recompute_listeners();
-}
+Route::Route(const Route &other) : Route() { *this = other; }
 
 auto Route::operator=(const Route &other) -> Route & {
+  if (this == &other) {
+    return *this;
+  }
+
   hops_.clear();
-  source = RouteHop(&SOURCE);
+  source = RouteHop();
+  for (auto *talker_other : other.talkers()) {
+    RouteHop &talker = get_or_create(*talker_other->device);
+    if (!source.has_child(talker.device->id)) {
+      source.childs.push_back(&talker);
+      talker.parents.push_back(&source);
+    }
+  }
   for (auto [hop1, hop2] : other.traverse_hops()) {
     add_link(*(hop1->device), *(hop2->device));
   }
@@ -243,11 +288,17 @@ auto Route::dump_to_json() const -> nlohmann::json {
 
 void Route::print(std::ostream &out) const {
   for (const auto &[id, hop] : hops_) {
-    out << std::format("%s (%u):", hop.device->name, id);
+    out << std::format("{} ({}):", hop.device->name, id);
     for (auto *child : hop.childs) {
-      out << std::format("%s (%u); ", child->device->name, id);
+      out << std::format("{} ({}); ", child->device->name, id);
     }
     out << "\n";
+  }
+}
+
+void Route::print_tree(std::ostream &out) const {
+  for (auto *talker : source.childs) {
+    talker->print(out, "|", talker->device->id);
   }
 }
 
@@ -258,6 +309,42 @@ auto Route::traverse_links() const
       std::pair<const DeviceProperty *, const DeviceProperty *> device_pair = {
           hop.device, child_ptr->device};
       co_yield device_pair;
+    }
+  }
+}
+
+auto Route::traverse_talker_links() const -> Generator<Link> {
+  for (auto *talker : talkers()) {
+    for (auto *next_hop : talker->childs) {
+      Link link(talker->device->id, next_hop->device->id);
+      co_yield link;
+    }
+  }
+}
+
+auto Route::traverse_listener_links() const -> Generator<Link> {
+  for (auto *listener : listeners()) {
+    for (auto *prev_hop : listener->parents) {
+      Link link(prev_hop->device->id, listener->device->id);
+      co_yield link;
+    }
+  }
+}
+
+auto Route::traverse_consecutive_links() const
+    -> Generator<std::pair<Link, Link>> {
+  for (auto [hop1, hop2] : traverse_hops()) {
+    Link link12(hop1->device->id, hop2->device->id);
+    for (auto *hop3 : hop2->childs) {
+      // there are certain FRER replication pattern that can appear
+      // like a cycle, while there is no real cyclic dependency.
+      // More complicated replication patterns, however, can be rejected.
+      if (hop3->device->id == hop1->device->id) {
+        continue;
+      }
+      Link link23(hop2->device->id, hop3->device->id);
+      auto link_pair = std::make_pair(link12, link23);
+      co_yield link_pair;
     }
   }
 }

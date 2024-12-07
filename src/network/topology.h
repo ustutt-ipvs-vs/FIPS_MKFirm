@@ -71,10 +71,6 @@ struct DeviceProperty {
 
   auto operator[](DeviceId id) const -> const DataLinkProperty &;
 };
-static DeviceProperty SOURCE(std::numeric_limits<DeviceId>::max() - 1,
-                             UNSPECIFIED, DelayInterval(0), "SOURCE");
-static DeviceProperty SINK(std::numeric_limits<DeviceId>::max(), UNSPECIFIED,
-                           DelayInterval(0), "SINK");
 
 struct NetworkTopology {
   NetworkTopology() = default;
@@ -89,7 +85,9 @@ struct NetworkTopology {
   [[nodiscard]] auto get_data_link(Link link) const -> const DataLinkProperty *;
 
   auto operator[](DeviceId id) const -> const DeviceProperty &;
+  [[nodiscard]] auto at(DeviceId id) const -> const DeviceProperty &;
   auto operator[](Link link) const -> const DataLinkProperty &;
+  [[nodiscard]] auto at(Link link) const -> const DataLinkProperty &;
 
   [[nodiscard]] auto dump_to_json() const -> nlohmann::json;
   void dump_to_file(const std::filesystem::path &out) const;
@@ -108,10 +106,11 @@ struct RouteHop {
   std::vector<RouteHop *> parents;
   std::vector<RouteHop *> childs;
 
+  RouteHop() = default;
   explicit RouteHop(const DeviceProperty *device) : device(device) {};
 
   [[nodiscard]] auto is_virtual_source() const -> bool {
-    return parents.empty();
+    return device == nullptr;
   }
   [[nodiscard]] auto is_talker() const -> bool {
     return parents.size() == 1 && parents.front()->is_virtual_source();
@@ -129,22 +128,25 @@ struct RouteHop {
     return find(id, parents);
   }
   [[nodiscard]] auto has_parent(DeviceId id) const -> bool {
-    return find_parent(id) != parents.end();
+    return !parents.empty() && find_parent(id) != parents.end();
   }
   [[nodiscard]] auto
   find_child(DeviceId id) const -> std::vector<RouteHop *>::const_iterator {
     return find(id, childs);
   }
   [[nodiscard]] auto has_child(DeviceId id) const -> bool {
-    return find_child(id) != childs.end();
+    return !childs.empty() && find_child(id) != childs.end();
   }
+  void print(std::ostream &out, std::string indent, DeviceId parent) const;
 
 private:
   [[nodiscard]] static auto find(DeviceId id,
                                  const std::vector<RouteHop *> &hops)
       -> std::vector<RouteHop *>::const_iterator {
-    return std::ranges::find_if(
-        hops, [&](auto hop) { return hop->device->id == id; });
+    return std::ranges::find_if(hops, [&](auto &hop) {
+      assert(hop->device != nullptr);
+      return hop->device->id == id;
+    });
   }
 };
 
@@ -161,13 +163,15 @@ private:
 public:
   RouteHop source;
 
-  Route() : source(&SOURCE) {};
+  Route() = default;
   Route(nlohmann::json &&j, const NetworkTopology &network);
 
   Route(const Route &other);
-  Route(Route &&other) = default;
   auto operator=(const Route &other) -> Route &;
-  auto operator=(Route &&other) -> Route & = default;
+  // when uncommented, the address sanitizer flips out when a talker
+  // dereferences source???
+  // Route(Route &&other) = default; auto operator=(Route
+  // &&other) -> Route & = default;
   ~Route() = default;
 
   void add_path(const Path &path, const NetworkTopology &network,
@@ -177,6 +181,7 @@ public:
 
   [[nodiscard]] auto dump_to_json() const -> nlohmann::json;
   void print(std::ostream &out = std::cout) const;
+  void print_tree(std::ostream &out = std::cout) const;
 
   [[nodiscard]] auto listeners() const -> const std::vector<RouteHop *> & {
     return listeners_;
@@ -194,6 +199,10 @@ public:
 
   [[nodiscard]] auto traverse_links() const
       -> Generator<std::pair<const DeviceProperty *, const DeviceProperty *>>;
+  [[nodiscard]] auto traverse_talker_links() const -> Generator<Link>;
+  [[nodiscard]] auto traverse_listener_links() const -> Generator<Link>;
+  [[nodiscard]] auto
+  traverse_consecutive_links() const -> Generator<std::pair<Link, Link>>;
   [[nodiscard]] auto traverse_hops() const
       -> Generator<std::pair<const RouteHop *, const RouteHop *>>;
 };
