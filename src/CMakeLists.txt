@@ -3,3 +3,4 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 add_subdirectory(network)
+add_subdirectory(dgm)
