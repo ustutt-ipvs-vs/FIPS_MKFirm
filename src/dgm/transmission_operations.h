@@ -34,12 +34,13 @@ struct TransmissionWeights {
   }
 };
 
-using OpIndex = size_t;
+using GlobalOpIndex = size_t;
+using LinkOpPosition = size_t;
 struct TransmissionOperation {
-  OpIndex id;
+  GlobalOpIndex id;
   const DeviceProperty *source;
   const DeviceProperty *target;
-  std::set<const Stream *> streams;
+  std::set<Frame> streams;
 
   PCPValue pcp;
   TransmissionWeights weights;
@@ -48,18 +49,24 @@ struct TransmissionOperation {
   std::vector<TransmissionOperation *> route_succ;
 };
 
-using LinkTransmissions = std::vector<TransmissionOperation>;
+using LinkTransmissions = std::vector<TransmissionOperation *>;
+using OperationPosition =
+    std::vector<std::pair<LinkTransmissions *, LinkOpPosition>>;
 
-static constexpr OpIndex SOURCE_ID = 0;
-static constexpr OpIndex SINK_ID = 1;
+static constexpr GlobalOpIndex SOURCE_ID = 0;
+static constexpr GlobalOpIndex SINK_ID = 1;
 
 struct ProcessingOrder {
   TransmissionOperation src{.id = SOURCE_ID};
   TransmissionOperation sink{.id = SINK_ID};
+  std::vector<TransmissionOperation> operations;
   std::map<Link, LinkTransmissions> map;
-  OpIndex total_operations{SINK_ID + 1};
+  GlobalOpIndex total_operations{SINK_ID + 1};
 
   auto operator[](const Link &link) -> LinkTransmissions & { return map[link]; }
+  auto operator[](GlobalOpIndex id) -> TransmissionOperation & {
+    return operations[id];
+  }
 };
 
 } // namespace tsndgm

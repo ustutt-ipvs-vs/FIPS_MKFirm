@@ -79,16 +79,16 @@ struct DFSTraversal {
 
     Vertex *op;
     MachineOperations *operations;
-    OpIndex pos;
+    LinkOpPosition pos;
     PCPValue pcp;
     Iterator it;
 
     VisitorState(const DFSTraversal *traversal, Vertex *op)
         : op(op), it(traversal, this, Iterator::JOB), traversal_(traversal) {};
     VisitorState(const DFSTraversal *traversal, MachineOperations &operations,
-                 OpIndex pos)
-        : op(&operations[pos]), operations(&operations), pos(pos),
-          pcp(operations[pos].pcp), it(traversal, this, Iterator::FIFO),
+                 LinkOpPosition pos)
+        : op(operations[pos]), operations(&operations), pos(pos),
+          pcp(operations[pos]->pcp), it(traversal, this, Iterator::FIFO),
           traversal_(traversal) {};
     VisitorState(const VisitorState &other)
         : op(other.op), operations(other.operations), pos(other.pos),
@@ -108,9 +108,8 @@ struct DFSTraversal {
   };
 
   DFSTraversal() = default;
-  DFSTraversal(const ProcessingOrder *processing_order);
-
-  void update_positions(Link link);
+  DFSTraversal(const ProcessingOrder *processing_order,
+               const OperationPosition *position);
 
   template <TraversalDirection D>
   [[nodiscard]] auto traverse(Vertex *start) -> Generator<DFSVisitor>;
@@ -123,8 +122,8 @@ private:
   [[nodiscard]] auto get_pcp_neighbor(Vertex &op) const -> Vertex *;
 
   const ProcessingOrder *processing_order_;
+  const OperationPosition *position_;
   std::vector<Color> color_;
-  std::vector<std::pair<MachineOperations *, OpIndex>> position_;
 };
 
 } // namespace tsndgm

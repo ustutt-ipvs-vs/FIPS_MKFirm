@@ -25,9 +25,9 @@ auto DFSTraversal::VisitorState<D>::Iterator::operator*()
     break;
   [[unlikely]] case MACHINE:
     if constexpr (D == BACKWARD) {
-      last_ = &(*state_->operations)[state_->pos - 1];
+      last_ = (*state_->operations)[state_->pos - 1];
     } else {
-      last_ = &(*state_->operations)[state_->pos + 1];
+      last_ = (*state_->operations)[state_->pos + 1];
     }
     break;
   [[likely]] case JOB:
@@ -166,21 +166,10 @@ auto DFSTraversal::VisitorState<D>::operator=(
   return *this;
 }
 
-DFSTraversal::DFSTraversal(const ProcessingOrder *processing_order)
-    : processing_order_(processing_order),
-      color_(processing_order->total_operations),
-      position_(processing_order->total_operations) {
-  for (auto link : std::views::keys(processing_order->map)) {
-    update_positions(link);
-  }
-}
-
-void DFSTraversal::update_positions(Link link) {
-  const auto &operations = processing_order_->map.at(link);
-  for (auto [i, op] : std::views::enumerate(operations)) {
-    position_[op.id] = {&operations, i};
-  }
-}
+DFSTraversal::DFSTraversal(const ProcessingOrder *processing_order,
+                           const OperationPosition *position)
+    : processing_order_(processing_order), position_(position),
+      color_(processing_order->total_operations) {}
 
 template <TraversalDirection D>
 auto DFSTraversal::get_pcp_neighbor(Vertex &op) const -> Vertex * {
@@ -188,18 +177,18 @@ auto DFSTraversal::get_pcp_neighbor(Vertex &op) const -> Vertex * {
     return nullptr;
   }
 
-  auto [operations, pos] = position_[op.id];
+  auto [operations, pos] = (*position_)[op.id];
   if constexpr (D == BACKWARD) {
     auto it =
         std::ranges::find_if((*operations | std::views::reverse |
                               std::views::drop(operations->size() - pos)),
-                             [&](auto &op1) { return op1.pcp == op.pcp; });
-    return it == operations->crend() ? nullptr : &(*it);
+                             [&](auto &op1) { return op1->pcp == op.pcp; });
+    return it == operations->crend() ? nullptr : *it;
   } else {
     auto it =
         std::ranges::find_if((*operations | std::views::drop(pos)),
-                             [&](auto &op1) { return op1.pcp == op.pcp; });
-    return it == operations->cend() ? nullptr : &(*it);
+                             [&](auto &op1) { return op1->pcp == op.pcp; });
+    return it == operations->cend() ? nullptr : *it;
   }
 }
 
@@ -239,7 +228,7 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
         if (v->id <= SINK_ID) {
           next = VisitorState<D>(this, v);
         } else {
-          auto [operations, op_index] = position_[v->id];
+          auto [operations, op_index] = (*position_)[v->id];
           next = VisitorState<D>(this, *operations, op_index);
         }
         break;

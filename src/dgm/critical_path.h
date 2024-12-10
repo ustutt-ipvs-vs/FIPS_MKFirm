@@ -13,22 +13,33 @@ struct CriticalPath {
 
   CriticalPath() = default;
   CriticalPath(DFSTraversal *dfs, const ProcessingOrder &processing_order)
-      : dfs_(dfs), sink_(&processing_order.sink),
+      : dfs_(dfs), src_(&processing_order.src), sink_(&processing_order.sink),
         crit_cost_(processing_order.total_operations) {};
+
   auto compute() -> const Result &;
   auto get_last() -> const Result & { return last_result_; }
+  [[nodiscard]] auto print() const
+      -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
 
 private:
   struct CriticalCost {
     Delay cost;
-    OpIndex pred;
+    GlobalOpIndex pred;
   };
 
   DFSTraversal *dfs_;
-  const Vertex *sink_;
+  const Vertex *src_, *sink_;
   Result last_result_;
 
   std::vector<CriticalCost> crit_cost_;
+
+  struct VertexInfo {
+    std::vector<std::pair<GlobalOpIndex, EdgeType>> succ;
+    std::string indent;
+  };
+  [[nodiscard]] auto print(const std::vector<VertexInfo> &info, std::string indent,
+             GlobalOpIndex id, GlobalOpIndex parent, bool is_last_child) const
+      -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
 };
 
 } // namespace tsndgm
