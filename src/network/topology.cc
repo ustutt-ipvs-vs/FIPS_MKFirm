@@ -10,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tsndgm {
 
@@ -176,19 +177,19 @@ void Route::recompute_listeners() {
   }
 }
 
-void RouteHop::print(std::ostream &out, std::string indent,
-                     DeviceId parent) const {
+void RouteHop::print(std::ostream &out, std::string indent, DeviceId parent,
+                     bool is_last_child) const {
   if (is_talker() || find_parent(parent) == parents.cbegin()) {
-    std::println(out, "{}\\|-{}", indent, device->id);
+    std::println(out, "{}{}{}", indent, is_last_child ? "└──" : "├──",
+                 device->id);
     for (auto *child : childs) {
-      if (child == childs.back()) {
-        child->print(out, indent + " ", device->id);
-      } else {
-        child->print(out, indent + "|", device->id);
-      }
+      child->print(out,
+                   std::format("{}{}", indent, is_last_child ? "   " : "│  "),
+                   device->id, child == childs.back());
     }
   } else {
-    std::println(out, "{}\\|-{} (elimination)", indent, device->id);
+    std::println(out, "{}{}{} (elimination)", indent,
+                 is_last_child ? "└──" : "├──", device->id);
   }
 }
 
@@ -253,26 +254,53 @@ Route::Route(nlohmann::json &&json, const NetworkTopology &network) {
   recompute_listeners();
 }
 
-Route::Route(const Route &other) : Route() { *this = other; }
-
-auto Route::operator=(const Route &other) -> Route & {
-  if (this == &other) {
-    return *this;
-  }
-
+void Route::copy_links(const Route &other) {
   hops_.clear();
+  for (auto [hop1, hop2] : other.traverse_hops()) {
+    add_link(*(hop1->device), *(hop2->device));
+  }
+  recompute_listeners();
+}
+
+void Route::relink_source(const std::vector<RouteHop *> &talkers) {
   source = RouteHop();
-  for (auto *talker_other : other.talkers()) {
+  for (auto *talker_other : talkers) {
     RouteHop &talker = get_or_create(*talker_other->device);
+    talker.parents.clear();
     if (!source.has_child(talker.device->id)) {
       source.childs.push_back(&talker);
       talker.parents.push_back(&source);
     }
   }
-  for (auto [hop1, hop2] : other.traverse_hops()) {
-    add_link(*(hop1->device), *(hop2->device));
+}
+
+Route::Route(const Route &other)
+    : hops_(other.hops_), listeners_(other.listeners_) {
+  copy_links(other);
+  relink_source(other.talkers());
+}
+
+Route::Route(Route &&other) noexcept
+    : hops_(std::move(other.hops_)), listeners_(std::move(other.listeners_)) {
+  relink_source(other.source.childs);
+}
+
+auto Route::operator=(const Route &other) -> Route & {
+  if (this == &other) {
+    return *this;
   }
-  recompute_listeners();
+  copy_links(other);
+  relink_source(other.talkers());
+  return *this;
+}
+
+auto Route::operator=(Route &&other) noexcept -> Route & {
+  if (this == &other) {
+    return *this;
+  }
+  hops_ = std::move(other.hops_);
+  listeners_ = std::move(other.listeners_);
+  relink_source(other.source.childs);
   return *this;
 }
 
@@ -298,7 +326,7 @@ void Route::print(std::ostream &out) const {
 
 void Route::print_tree(std::ostream &out) const {
   for (auto *talker : source.childs) {
-    talker->print(out, "|", talker->device->id);
+    talker->print(out, "", talker->device->id);
   }
 }
 

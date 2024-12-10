@@ -1,11 +1,10 @@
 #include "stream.h"
-#include "/home/eggersn/projects/libtsndgm2/src/utils/interval.h"
+#include "../utils/interval.h"
 #include "histogram.h"
 #include "nlohmann/json_fwd.hpp"
 #include "topology.h"
 #include <limits>
 #include <utility>
-#include <vector>
 
 namespace tsndgm {
 
@@ -54,13 +53,6 @@ void Stream::populate_wireline_pdbs() {
 auto Stream::frames(Delay hyper_cycle) const -> Generator<FrameIndex> {
   for (FrameIndex f = 0; f * period < hyper_cycle; f++) {
     co_yield f;
-  }
-}
-
-StreamStorage::StreamStorage(const std::vector<Stream> &streams) {
-  for (auto stream : streams) {
-    stream.populate_wireline_pdbs();
-    this->streams.push_back(std::move(stream));
   }
 }
 

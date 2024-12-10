@@ -35,19 +35,16 @@ struct Stream {
   [[nodiscard]] auto frames(Delay hyper_cycle) const -> Generator<FrameIndex>;
 };
 
-struct StreamStorage {
-  std::vector<Stream> streams;
+struct Frame {
+  const Stream *stream;
+  FrameIndex id;
 
-  StreamStorage() = default;
-  StreamStorage(const std::vector<Stream> &streams);
-  StreamStorage(const StreamStorage &other) = default;
-  auto operator=(const StreamStorage &) -> StreamStorage & = default;
-  StreamStorage(StreamStorage &&other) = default;
-  auto operator=(StreamStorage &&) -> StreamStorage & = default;
-
-  using Iterator = decltype(streams)::const_iterator;
-  [[nodiscard]] auto begin() const -> Iterator { return streams.begin(); }
-  [[nodiscard]] auto end() const -> Iterator { return streams.end(); }
+  [[nodiscard]] auto name() const -> std::string {
+    return std::format("{}#{}", stream->name, id);
+  }
+  auto operator<=>(const Frame &other) const {
+    return stream == other.stream ? id <=> other.id : stream <=> other.stream;
+  }
 };
 
 } // namespace tsndgm

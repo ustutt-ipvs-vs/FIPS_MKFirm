@@ -137,7 +137,8 @@ struct RouteHop {
   [[nodiscard]] auto has_child(DeviceId id) const -> bool {
     return !childs.empty() && find_child(id) != childs.end();
   }
-  void print(std::ostream &out, std::string indent, DeviceId parent) const;
+  void print(std::ostream &out, std::string indent, DeviceId parent,
+             bool is_last_child = false) const;
 
 private:
   [[nodiscard]] static auto find(DeviceId id,
@@ -159,6 +160,8 @@ private:
   void recompute_listeners();
   auto get_or_create(const DeviceProperty &device) -> RouteHop &;
   void add_link(const DeviceProperty &source, const DeviceProperty &target);
+  void copy_links(const Route &other);
+  void relink_source(const std::vector<RouteHop *> &talkers);
 
 public:
   RouteHop source;
@@ -168,10 +171,8 @@ public:
 
   Route(const Route &other);
   auto operator=(const Route &other) -> Route &;
-  // when uncommented, the address sanitizer flips out when a talker
-  // dereferences source???
-  // Route(Route &&other) = default; auto operator=(Route
-  // &&other) -> Route & = default;
+  Route(Route &&other) noexcept;
+  auto operator=(Route &&other) noexcept -> Route &;
   ~Route() = default;
 
   void add_path(const Path &path, const NetworkTopology &network,
