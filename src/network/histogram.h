@@ -9,13 +9,14 @@
 
 namespace tsndgm {
 
-using Count = unsigned long long;
+using Count = long long;
 using Bits = Count;
 using Bytes = Count;
 using Histogram = std::map<Delay, Count>;
 enum PDBPolicy : std::uint8_t { MINIMIZE_INTERVAL, MINIMIZE_DMAX };
 
 [[maybe_unused]] constexpr Bits BitsPerByte = 8;
+[[maybe_unused]] constexpr Bytes IFGBytes = 12;
 
 struct DelayHistogram {
   Histogram histogram;
@@ -47,6 +48,12 @@ struct InterFrameGap {
 
   InterFrameGap() = default;
   explicit InterFrameGap(const DataLinkProperty &data_link);
+
+  auto operator+=(const InterFrameGap &other) -> InterFrameGap & {
+    delay = delay + other.delay;
+    trailing_bytes += other.trailing_bytes;
+    return *this;
+  }
 };
 using IFG = InterFrameGap;
 
@@ -70,6 +77,8 @@ struct PacketDelayBudget {
                FrameSizeRange frame_size, const DelayHistogram &hist,
                double reliability,
                PDBPolicy policy = MINIMIZE_INTERVAL) -> PacketDelayBudget;
+
+  void merge(const PacketDelayBudget &other);
 };
 using PDB = PacketDelayBudget;
 

@@ -13,6 +13,12 @@ template <typename T> struct Interval {
   Interval(T val) : min(val), max(val) {};
   Interval(T min, T max) : min(min), max(max) {};
 
+  auto merge(const Interval &other) -> Interval & {
+    min = std::min(min, other.min);
+    max = std::max(max, other.max);
+    return *this;
+  }
+
   friend auto operator+(Interval lhs, const Interval &rhs) -> Interval {
     lhs.min += rhs.min;
     lhs.max += rhs.max;

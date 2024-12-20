@@ -27,6 +27,8 @@ struct StreamStorage {
   [[nodiscard]] auto frames() const -> Generator<Frame>;
   [[nodiscard]] auto sorted_frames() const -> Generator<Frame>;
 
+  [[nodiscard]] auto number_of_transmissions() const -> size_t;
+
 private:
   std::vector<Frame> sorted_frames_;
 };

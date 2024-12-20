@@ -118,23 +118,13 @@ auto DelayHistogram::compute_reliability(Count c) const -> double {
 }
 
 InterFrameGap::InterFrameGap(const DataLinkProperty &data_link) {
-  switch (data_link.data_rate) {
-  case Ethernet10Mbps:
-    delay = DelayInterval(0, 4700);
-    trailing_bytes = 6;
-    break;
-  case Ethernet100Mbps:
-    delay = DelayInterval(0, 960);
-    trailing_bytes = 12;
-    break;
-  case Ethernet1Gbps:
-    delay = DelayInterval(0, 96);
-    trailing_bytes = 8;
-    break;
-  default:
-    delay = DelayInterval(0);
+  if (data_link.data_rate == 0) {
     trailing_bytes = 0;
-    break;
+    delay = DelayInterval(0);
+  } else {
+    trailing_bytes = IFGBytes;
+    delay = DelayInterval(0, (IFGBytes * BitsPerByte * TicksPerSec) /
+                                 data_link.data_rate);
   }
 }
 
@@ -167,6 +157,16 @@ auto PacketDelayBudget::wireless_pdb(const DeviceProperty &source,
   pdb.d_trans = pdb.serialization + pdb.ifg.delay;
   pdb.d_total = pdb.d_trans + pdb.wireless + pdb.propagation + pdb.processing;
   return pdb;
+}
+
+void PacketDelayBudget::merge(const PacketDelayBudget &other) {
+  serialization = serialization + other.serialization;
+  ifg += other.ifg;
+  wireless.merge(other.wireless);
+  processing.merge(other.processing); // they are likely identical...
+
+  d_trans = serialization + ifg.delay;
+  d_total = d_trans + wireless + propagation + processing;
 }
 
 } // namespace tsndgm

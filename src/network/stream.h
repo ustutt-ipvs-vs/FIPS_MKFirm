@@ -15,6 +15,8 @@ using FrameIndex = unsigned int;
 using PDBMap = std::map<Link, PDB>;
 using DelayMap = std::map<Link, Delay>;
 
+[[maybe_unused]] constexpr PCPValue DefaultPCP = 7;
+
 struct Stream {
   Route route;
   FrameSizeRange frame_size;
@@ -22,7 +24,7 @@ struct Stream {
   Delay phase = 0;
   Delay e2e_latency = 0;
   Delay jitter = 0;
-  PCPValue pcp = 7;
+  PCPValue pcp = DefaultPCP;
   Probability reliability = 1;
   FrameIndex tolerated_loss = 0;
   std::string name;

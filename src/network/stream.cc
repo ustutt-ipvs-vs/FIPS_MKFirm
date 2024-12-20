@@ -1,4 +1,5 @@
 #include "stream.h"
+#include "../utils/generator.h"
 #include "../utils/interval.h"
 #include "histogram.h"
 #include "nlohmann/json_fwd.hpp"
@@ -18,7 +19,8 @@ auto Stream::load_from_json(nlohmann::json &&json,
       .phase = json["phase"],
       .e2e_latency = json["e2e_latency"],
       .jitter = json["jitter"],
-      .pcp = json_get_or_default<>(json["pcp"], static_cast<PCPValue>(7)),
+      .pcp =
+          json_get_or_default<>(json["pcp"], static_cast<PCPValue>(DefaultPCP)),
       .reliability = 1,
       .tolerated_loss = json_get_or_default<>(
           json["frame_loss"], std::numeric_limits<FrameIndex>::max()),

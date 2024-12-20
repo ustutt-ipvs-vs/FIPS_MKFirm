@@ -1,6 +1,7 @@
 #ifndef TSN_DGM_TOPOLOGY_H
 #define TSN_DGM_TOPOLOGY_H
 
+#include "../utils/generator.h"
 #include "../utils/interval.h"
 #include <cstddef>
 #include <filesystem>
@@ -10,15 +11,14 @@
 #include <optional>
 #include <ranges>
 #include <string>
-#include <tl/generator.hpp>
 #include <vector>
 
 namespace tsndgm {
 
 using DeviceId = unsigned int;
-using Tick = unsigned long long; // in nanoseconds
-using Delay = Tick;
-using DataRate = unsigned long long; // in bps
+using Tick = long long; // in nanoseconds
+using Delay = long long;
+using DataRate = long long; // in bps
 
 [[maybe_unused]] constexpr Tick TicksPerMicroSec = 1e3;
 [[maybe_unused]] constexpr Tick TicksPerMilliSec = 1e6;
@@ -151,7 +151,6 @@ private:
   }
 };
 
-template <typename T> using Generator = tl::generator<T>;
 struct Route {
 private:
   std::map<DeviceId, RouteHop> hops_;

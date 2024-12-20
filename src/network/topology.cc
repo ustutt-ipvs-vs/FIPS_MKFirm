@@ -1,4 +1,5 @@
 #include "topology.h"
+#include "../utils/generator.h"
 #include "nlohmann/json_fwd.hpp"
 #include <algorithm>
 #include <filesystem>
