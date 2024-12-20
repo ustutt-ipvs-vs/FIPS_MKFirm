@@ -1,6 +1,8 @@
 #include "../src/dgm/transmission_graph.h"
+#include <functional>
 #include <gtest/gtest.h>
 #include <print>
+#include <random>
 
 namespace tsndgm {
 
@@ -9,11 +11,12 @@ protected:
   TransmissionGraphTest() {
     build_network();
     std::vector<Stream> streams;
-    for (size_t i = 0; i < Ns; i++) {
+    for (int i = 0; std::less{}(i, Ns); i++) {
       streams.push_back({.route = build_route(i % Ny),
                          .frame_size = 100,
                          .period = 100000 * ((i % 5) + 1),
-                         .name = std::format("Stream{}", i)});
+                         //.pcp = static_cast<PCPValue>(i),
+                         .name = std::format("S{}", i)});
       std::println("Stream {}", i);
       streams.back().route.print_tree();
     }
@@ -75,16 +78,49 @@ protected:
   }
 
   const DeviceId Nx = 10;
-  const DeviceId Ny = 5;
-  const size_t Ns = 20;
+  const DeviceId Ny = 3;
+  const size_t Ns = 5;
   NetworkTopology network;
   StreamStorage streams;
 };
 
-TEST_F(TransmissionGraphTest, BuildTransmissionGraph) {
-  TransmissionGraph g = TransmissionGraph(streams);
+TEST_F(TransmissionGraphTest, TestOperations) {
+  int N = 100;
+  TransmissionGraph g = TransmissionGraph(&streams);
+  std::println("{}", g.size());
+
   auto res = g.critical_path();
-  std::println("Result: {} {}", res.critical_vertex->id, res.objective);
+
+  std::mt19937 gen(std::random_device{}());
+  std::uniform_int_distribution<std::size_t> r(SINK_ID + 1, g.size() - 1);
+
+  for (int i = 0; i < N; i++) {
+    GlobalOpIndex id = r(gen);
+    if (!g.is_valid(id)) {
+      continue;
+    }
+    auto [op1, pos] = g[id];
+    Link link = op1->link();
+    if (pos > 0) {
+      std::uniform_int_distribution<std::size_t> r1(0, pos - 1);
+      LinkOpPosition new_pos = r1(gen);
+
+      if (i % 2 == 0) {
+        g.flip(op1->id, new_pos);
+      } else {
+        auto op2 = g[link][r1(gen)];
+        g.merge({op2->id, op1->id});
+      }
+      res = g.critical_path();
+      if (res.has_value()) {
+        std::println("{} {} {} {}", i, op1->id, new_pos, res->objective);
+      } else {
+        std::println("{} {} {} ABORTED", i, op1->id, new_pos);
+        return;
+      }
+      ASSERT_EQ(g.check_consistency(), true);
+    }
+  }
 }
 
 } // namespace tsndgm

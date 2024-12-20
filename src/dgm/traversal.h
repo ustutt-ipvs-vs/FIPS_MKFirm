@@ -6,6 +6,7 @@
 namespace tsndgm {
 
 enum TraversalDirection : std::uint8_t { FORWARD, BACKWARD };
+enum TraversalStatus : std::uint8_t { COMPLETED, CONTINUE, ABORT };
 
 using Vertex = const TransmissionOperation;
 using MachineOperations = const LinkTransmissions;
@@ -34,6 +35,48 @@ struct DFSVisitor {
     return *this;
   }
   void print();
+};
+
+template <typename... Functions> class DFSEventHandler {
+public:
+  constexpr DFSEventHandler(
+      std::pair<DFSVisitor::Event, Functions> &&...funcs) noexcept
+      : funcs_(std::move(funcs)...) {}
+  constexpr ~DFSEventHandler() noexcept = default;
+
+  // copy
+  constexpr DFSEventHandler(const DFSEventHandler &) noexcept = default;
+  constexpr auto
+  operator=(const DFSEventHandler &) noexcept -> DFSEventHandler & = default;
+  // move
+  constexpr DFSEventHandler(DFSEventHandler &&) noexcept = default;
+  constexpr auto
+  operator=(DFSEventHandler &&) noexcept -> DFSEventHandler & = default;
+
+  template <typename... Args>
+  auto operator()(DFSVisitor::Event event, Args &&...args) const noexcept {
+    TraversalStatus status = CONTINUE;
+    [event, &status, this]<size_t... I>(std::index_sequence<I...> /*unused*/,
+                                        Args &&...args) -> void {
+      if (status != ABORT) {
+        constexpr static auto f = [](auto &pair, DFSVisitor::Event event,
+                                     Args &&...args) -> TraversalStatus {
+          if (pair.first == event) {
+            return std::invoke(pair.second, args...);
+          }
+          return CONTINUE;
+        };
+        status = (std::invoke(f, std::get<I>(funcs_), event,
+                              std::forward<Args>(args)...),
+                  ...);
+      }
+    }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(
+                                                            args)...);
+    return status;
+  }
+
+private:
+  std::tuple<std::pair<DFSVisitor::Event, Functions>...> funcs_;
 };
 
 struct DFSTraversal {
@@ -113,6 +156,17 @@ struct DFSTraversal {
 
   template <TraversalDirection D>
   [[nodiscard]] auto traverse(Vertex *start) -> Generator<DFSVisitor>;
+  template <TraversalDirection D, typename... Functions>
+  auto traverse(Vertex *start, DFSEventHandler<Functions...> handler) {
+    for (auto visitor : traverse<D>(start)) {
+      auto status = handler(visitor.event, visitor.visited_element);
+      if (status != CONTINUE) {
+        return status;
+      }
+    }
+    return COMPLETED;
+  }
+
   auto size() -> size_t { return processing_order_->total_operations; };
 
 private:

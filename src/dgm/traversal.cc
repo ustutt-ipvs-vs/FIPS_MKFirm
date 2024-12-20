@@ -1,5 +1,5 @@
 #include "traversal.h"
-#include "../network/topology.h"
+#include "../utils/generator.h"
 #include "transmission_operations.h"
 #include <algorithm>
 #include <cassert>
