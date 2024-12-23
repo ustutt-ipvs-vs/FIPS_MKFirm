@@ -30,12 +30,10 @@ void TransmissionWeights::merge(const TransmissionWeights &other) {
   merge_pairs(job, other.job, pdb.d_total.max);
 }
 
-ProcessingOrder::ProcessingOrder()
-    : operations({{.id = SOURCE_ID}, {.id = SINK_ID}}) {}
+ProcessingOrder::ProcessingOrder() : operations({{.id = SOURCE_ID}, {.id = SINK_ID}}) {}
 
 ProcessingOrder::ProcessingOrder(const ProcessingOrder &other) noexcept
-    : operations(other.operations), map(other.map),
-      total_operations(other.total_operations) {
+    : operations(other.operations), map(other.map), total_operations(other.total_operations) {
   relink_pointers();
 }
 
@@ -45,8 +43,7 @@ ProcessingOrder::ProcessingOrder(ProcessingOrder &&other) noexcept
   relink_pointers();
 }
 
-auto ProcessingOrder::operator=(const ProcessingOrder &other) noexcept
-    -> ProcessingOrder & {
+auto ProcessingOrder::operator=(const ProcessingOrder &other) noexcept -> ProcessingOrder & {
   if (this == &other) {
     return *this;
   }
@@ -58,8 +55,7 @@ auto ProcessingOrder::operator=(const ProcessingOrder &other) noexcept
   return *this;
 }
 
-auto ProcessingOrder::operator=(ProcessingOrder &&other) noexcept
-    -> ProcessingOrder & {
+auto ProcessingOrder::operator=(ProcessingOrder &&other) noexcept -> ProcessingOrder & {
   if (this == &other) {
     return *this;
   }
@@ -88,23 +84,22 @@ void ProcessingOrder::relink_pointers() noexcept {
   }
 }
 
-[[nodiscard]] auto
-ProcessingOrder::operator[](const Link &link) noexcept -> LinkTransmissions & {
+[[nodiscard]] auto ProcessingOrder::operator[](const Link &link) noexcept -> LinkTransmissions & {
   return map[link];
 }
 
-[[nodiscard]] auto ProcessingOrder::operator[](const Link &link) const noexcept
-    -> const LinkTransmissions & {
+[[nodiscard]] auto
+ProcessingOrder::operator[](const Link &link) const noexcept -> const LinkTransmissions & {
   return map.at(link);
 }
 
-[[nodiscard]] auto ProcessingOrder::operator[](GlobalOpIndex id) noexcept
-    -> TransmissionOperation & {
+[[nodiscard]] auto
+ProcessingOrder::operator[](GlobalOpIndex id) noexcept -> TransmissionOperation & {
   return operations[id];
 }
 
-[[nodiscard]] auto ProcessingOrder::operator[](GlobalOpIndex id) const noexcept
-    -> const TransmissionOperation & {
+[[nodiscard]] auto
+ProcessingOrder::operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation & {
   return operations[id];
 }
 
@@ -112,8 +107,7 @@ ProcessingOrder::operator[](const Link &link) noexcept -> LinkTransmissions & {
   return operations[SOURCE_ID];
 }
 
-[[nodiscard]] auto
-ProcessingOrder::src() const noexcept -> const TransmissionOperation & {
+[[nodiscard]] auto ProcessingOrder::src() const noexcept -> const TransmissionOperation & {
   return operations[SOURCE_ID];
 }
 
@@ -121,8 +115,7 @@ ProcessingOrder::src() const noexcept -> const TransmissionOperation & {
   return operations[SINK_ID];
 }
 
-[[nodiscard]] auto
-ProcessingOrder::sink() const noexcept -> const TransmissionOperation & {
+[[nodiscard]] auto ProcessingOrder::sink() const noexcept -> const TransmissionOperation & {
   return operations[SINK_ID];
 }
 

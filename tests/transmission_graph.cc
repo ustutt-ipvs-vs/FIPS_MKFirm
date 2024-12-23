@@ -34,21 +34,17 @@ protected:
       for (DeviceId j = 0; j < Ny; j++) {
         const DeviceProperty device = {
             .id = device_id(i, j),
-            .type = (i == 0 || j == 0 || i == Nx - 1 || j == Ny - 1)
-                        ? END_DEVICE
-                        : TSN_BRIDGE,
+            .type = (i == 0 || j == 0 || i == Nx - 1 || j == Ny - 1) ? END_DEVICE : TSN_BRIDGE,
         };
         network.add_device(device);
 
         if (i > 0) {
-          const Link link = {.source = device_id(i - 1, j),
-                             .target = device_id(i, j)};
+          const Link link = {.source = device_id(i - 1, j), .target = device_id(i, j)};
           const DataLinkProperty data_link = {link, WIRED, Ethernet100Mbps, 50};
           network.add_data_link(data_link);
         }
         if (j > 0) {
-          const Link link = {.source = device_id(i, j - 1),
-                             .target = device_id(i, j)};
+          const Link link = {.source = device_id(i, j - 1), .target = device_id(i, j)};
           const DataLinkProperty data_link = {link, WIRED, Ethernet100Mbps, 50};
           network.add_data_link(data_link);
         }
@@ -132,8 +128,7 @@ TEST_F(TransmissionGraphTest, TestOperations) {
       }
       res = g.critical_path();
       if (res != nullptr) {
-        std::println("{} {} {} {}", i, op1->id, new_pos,
-                     res->get_last().objective);
+        std::println("{} {} {} {}", i, op1->id, new_pos, res->get_last().objective);
       } else {
         std::println("{} {} {} ABORTED", i, op1->id, new_pos);
         return;

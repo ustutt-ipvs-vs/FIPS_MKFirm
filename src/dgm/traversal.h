@@ -39,19 +39,16 @@ struct DFSVisitor {
 
 template <typename... Functions> class DFSEventHandler {
 public:
-  constexpr DFSEventHandler(
-      std::pair<DFSVisitor::Event, Functions> &&...funcs) noexcept
+  constexpr DFSEventHandler(std::pair<DFSVisitor::Event, Functions> &&...funcs) noexcept
       : funcs_(std::move(funcs)...) {}
   constexpr ~DFSEventHandler() noexcept = default;
 
   // copy
   constexpr DFSEventHandler(const DFSEventHandler &) noexcept = default;
-  constexpr auto
-  operator=(const DFSEventHandler &) noexcept -> DFSEventHandler & = default;
+  constexpr auto operator=(const DFSEventHandler &) noexcept -> DFSEventHandler & = default;
   // move
   constexpr DFSEventHandler(DFSEventHandler &&) noexcept = default;
-  constexpr auto
-  operator=(DFSEventHandler &&) noexcept -> DFSEventHandler & = default;
+  constexpr auto operator=(DFSEventHandler &&) noexcept -> DFSEventHandler & = default;
 
   template <typename... Args>
   auto operator()(DFSVisitor::Event event, Args &&...args) const noexcept {
@@ -66,12 +63,9 @@ public:
           }
           return CONTINUE;
         };
-        status = (std::invoke(f, std::get<I>(funcs_), event,
-                              std::forward<Args>(args)...),
-                  ...);
+        status = (std::invoke(f, std::get<I>(funcs_), event, std::forward<Args>(args)...), ...);
       }
-    }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(
-                                                            args)...);
+    }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(args)...);
     return status;
   }
 
@@ -91,8 +85,7 @@ struct DFSTraversal {
       using Reference = Vertex &;
 
       Iterator() = default;
-      Iterator(const DFSTraversal *traversal, const VisitorState *state,
-               Type type = FIFO)
+      Iterator(const DFSTraversal *traversal, const VisitorState *state, Type type = FIFO)
           : state_(state), traversal_(traversal), type_(type) {
         setup(type);
       };
@@ -129,14 +122,12 @@ struct DFSTraversal {
 
     VisitorState(const DFSTraversal *traversal, Vertex *op)
         : op(op), it(traversal, this, Iterator::JOB), traversal_(traversal) {};
-    VisitorState(const DFSTraversal *traversal, MachineOperations &operations,
-                 LinkOpPosition pos)
-        : op(operations[pos]), operations(&operations), pos(pos),
-          pcp(operations[pos]->pcp), it(traversal, this, Iterator::FIFO),
-          traversal_(traversal) {};
+    VisitorState(const DFSTraversal *traversal, MachineOperations &operations, LinkOpPosition pos)
+        : op(operations[pos]), operations(&operations), pos(pos), pcp(operations[pos]->pcp),
+          it(traversal, this, Iterator::FIFO), traversal_(traversal) {};
     VisitorState(const VisitorState &other)
-        : op(other.op), operations(other.operations), pos(other.pos),
-          pcp(other.pcp), it(other.it), tree_edge(other.tree_edge) {
+        : op(other.op), operations(other.operations), pos(other.pos), pcp(other.pcp), it(other.it),
+          tree_edge(other.tree_edge) {
       it.state_ = this;
     }
 
@@ -152,8 +143,7 @@ struct DFSTraversal {
   };
 
   DFSTraversal() = default;
-  DFSTraversal(const ProcessingOrder *processing_order,
-               const OperationPosition *position);
+  DFSTraversal(const ProcessingOrder *processing_order, const OperationPosition *position);
 
   template <TraversalDirection D>
   [[nodiscard]] auto traverse(Vertex *start) -> Generator<DFSVisitor>;
@@ -173,8 +163,7 @@ struct DFSTraversal {
 private:
   enum Color : std::uint8_t { WHITE, GRAY, BLACK };
 
-  template <TraversalDirection D>
-  [[nodiscard]] auto get_pcp_neighbor(Vertex &op) const -> Vertex *;
+  template <TraversalDirection D> [[nodiscard]] auto get_pcp_neighbor(Vertex &op) const -> Vertex *;
 
   const ProcessingOrder *processing_order_;
   const OperationPosition *position_;

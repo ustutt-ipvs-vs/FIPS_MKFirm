@@ -17,18 +17,15 @@ void DelayHistogram::verify_upper_bound() const {
   }
 }
 
-DelayHistogram::DelayHistogram(Histogram histogram, Count size,
-                               std::string name)
-    : histogram(std::move(histogram)), size(size),
-      name(std::move(std::move(name))) {
+DelayHistogram::DelayHistogram(Histogram histogram, Count size, std::string name)
+    : histogram(std::move(histogram)), size(size), name(std::move(std::move(name))) {
   verify_upper_bound();
 };
 
 DelayHistogram::DelayHistogram(const Histogram &histogram, std::string name)
     : histogram(histogram),
-      size(std::ranges::fold_left(
-          histogram, static_cast<Count>(0),
-          [](Count c, auto it) { return c + it.second; })),
+      size(std::ranges::fold_left(histogram, static_cast<Count>(0),
+                                  [](Count c, auto it) { return c + it.second; })),
       name(std::move(std::move(name))) {
   verify_upper_bound();
 };
@@ -51,8 +48,7 @@ DelayHistogram::DelayHistogram(nlohmann::json hist_data)
   verify_upper_bound();
 }
 
-auto DelayHistogram::compute_pdb(double reliability,
-                                 PDBPolicy policy) const -> DelayInterval {
+auto DelayHistogram::compute_pdb(double reliability, PDBPolicy policy) const -> DelayInterval {
   if (reliability == 0) {
     return {0};
   }
@@ -87,13 +83,11 @@ auto DelayHistogram::compute_pdb(double reliability,
   std::unreachable();
 }
 
-auto DelayHistogram::compute_reliability(DelayInterval interval) const
-    -> double {
+auto DelayHistogram::compute_reliability(DelayInterval interval) const -> double {
   Count c = 0;
 
-  auto lower = histogram.contains(interval.min)
-                   ? --histogram.upper_bound(interval.min)
-                   : histogram.upper_bound(interval.min);
+  auto lower = histogram.contains(interval.min) ? --histogram.upper_bound(interval.min)
+                                                : histogram.upper_bound(interval.min);
   if (lower == histogram.end()) {
     return 0;
   }
@@ -123,14 +117,12 @@ InterFrameGap::InterFrameGap(const DataLinkProperty &data_link) {
     delay = DelayInterval(0);
   } else {
     trailing_bytes = IFGBytes;
-    delay = DelayInterval(0, (IFGBytes * BitsPerByte * TicksPerSec) /
-                                 data_link.data_rate);
+    delay = DelayInterval(0, (IFGBytes * BitsPerByte * TicksPerSec) / data_link.data_rate);
   }
 }
 
-auto PacketDelayBudget::wireline_pdb(
-    const DeviceProperty &source, const DeviceProperty &target,
-    FrameSizeRange frame_size) -> PacketDelayBudget {
+auto PacketDelayBudget::wireline_pdb(const DeviceProperty &source, const DeviceProperty &target,
+                                     FrameSizeRange frame_size) -> PacketDelayBudget {
   const auto &data_link = source[target.id];
   PacketDelayBudget pdb = {
       .wireless = DelayInterval(0),
@@ -139,19 +131,15 @@ auto PacketDelayBudget::wireline_pdb(
       .ifg = InterFrameGap(data_link),
   };
 
-  pdb.serialization =
-      (frame_size * BitsPerByte * TicksPerSec) / data_link.data_rate,
+  pdb.serialization = (frame_size * BitsPerByte * TicksPerSec) / data_link.data_rate,
   pdb.d_trans = pdb.serialization + pdb.ifg.delay;
   pdb.d_total = pdb.d_trans + pdb.propagation + pdb.processing;
   return pdb;
 }
 
-auto PacketDelayBudget::wireless_pdb(const DeviceProperty &source,
-                                     const DeviceProperty &target,
-                                     FrameSizeRange frame_size,
-                                     const DelayHistogram &hist,
-                                     double reliability,
-                                     PDBPolicy policy) -> PacketDelayBudget {
+auto PacketDelayBudget::wireless_pdb(const DeviceProperty &source, const DeviceProperty &target,
+                                     FrameSizeRange frame_size, const DelayHistogram &hist,
+                                     double reliability, PDBPolicy policy) -> PacketDelayBudget {
   auto pdb = PacketDelayBudget::wireline_pdb(source, target, frame_size);
   pdb.wireless = hist.compute_pdb(reliability, policy);
   pdb.d_trans = pdb.serialization + pdb.ifg.delay;

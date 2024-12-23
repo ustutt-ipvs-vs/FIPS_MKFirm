@@ -21,14 +21,10 @@ TEST_F(HistogramTest, UniformHistogram) {
   for (int i = 0; i < N; i++) {
     EXPECT_EQ(delay_histogram.compute_reliability({0, i * TicksPerMilliSec}),
               static_cast<double>(i) / N);
-    EXPECT_EQ(
-        delay_histogram.compute_reliability({0, i * TicksPerMilliSec + 999}),
-        static_cast<double>(i) / N);
-    EXPECT_EQ(
-        delay_histogram.compute_reliability({0, 2 * N * TicksPerMilliSec}), 1);
-    EXPECT_EQ(delay_histogram.compute_reliability(
-                  {N * TicksPerMilliSec, i * TicksPerMilliSec}),
-              0);
+    EXPECT_EQ(delay_histogram.compute_reliability({0, i * TicksPerMilliSec + 999}),
+              static_cast<double>(i) / N);
+    EXPECT_EQ(delay_histogram.compute_reliability({0, 2 * N * TicksPerMilliSec}), 1);
+    EXPECT_EQ(delay_histogram.compute_reliability({N * TicksPerMilliSec, i * TicksPerMilliSec}), 0);
   }
 
   NetworkTopology network;
@@ -47,16 +43,15 @@ TEST_F(HistogramTest, UniformHistogram) {
   EXPECT_EQ(wireline_pdb.d_trans, DelayInterval(8000, 16960));
   EXPECT_EQ(wireline_pdb.d_total, DelayInterval(8050, 17010));
 
-  PDB wireless_pdb = PDB::wireless_pdb(network[0], network[1], {100, 200},
-                                       delay_histogram, 0.5, MINIMIZE_DMAX);
+  PDB wireless_pdb =
+      PDB::wireless_pdb(network[0], network[1], {100, 200}, delay_histogram, 0.5, MINIMIZE_DMAX);
   EXPECT_EQ(wireless_pdb.ifg.delay, DelayInterval(0, 960));
   EXPECT_EQ(wireless_pdb.propagation, 50);
   EXPECT_EQ(wireless_pdb.serialization, DelayInterval(8000, 16000));
   EXPECT_EQ(wireless_pdb.processing, DelayInterval(0));
   EXPECT_EQ(wireless_pdb.wireless, DelayInterval(0, N / 2 * TicksPerMilliSec));
   EXPECT_EQ(wireless_pdb.d_trans, DelayInterval(8000, 16960));
-  EXPECT_EQ(wireless_pdb.d_total,
-            DelayInterval(8050, 17010 + N / 2 * TicksPerMilliSec));
+  EXPECT_EQ(wireless_pdb.d_total, DelayInterval(8050, 17010 + N / 2 * TicksPerMilliSec));
 }
 
 } // namespace tsndgm

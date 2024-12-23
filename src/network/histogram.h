@@ -31,11 +31,9 @@ struct DelayHistogram {
       : DelayHistogram(nlohmann::json::parse(hist_istream)) {};
   explicit DelayHistogram(nlohmann::json hist_data);
 
-  [[nodiscard]] auto
-  compute_pdb(double reliability,
-              PDBPolicy policy = MINIMIZE_INTERVAL) const -> DelayInterval;
-  [[nodiscard]] auto
-  compute_reliability(DelayInterval interval) const -> double;
+  [[nodiscard]] auto compute_pdb(double reliability,
+                                 PDBPolicy policy = MINIMIZE_INTERVAL) const -> DelayInterval;
+  [[nodiscard]] auto compute_reliability(DelayInterval interval) const -> double;
   [[nodiscard]] auto compute_reliability(Count c) const -> double;
 
 private:
@@ -69,14 +67,12 @@ struct PacketDelayBudget {
   Delay propagation;
   InterFrameGap ifg;
 
-  static auto wireline_pdb(const DeviceProperty &source,
-                           const DeviceProperty &target,
+  static auto wireline_pdb(const DeviceProperty &source, const DeviceProperty &target,
                            FrameSizeRange frame_size) -> PacketDelayBudget;
-  static auto
-  wireless_pdb(const DeviceProperty &source, const DeviceProperty &target,
-               FrameSizeRange frame_size, const DelayHistogram &hist,
-               double reliability,
-               PDBPolicy policy = MINIMIZE_INTERVAL) -> PacketDelayBudget;
+  static auto wireless_pdb(const DeviceProperty &source, const DeviceProperty &target,
+                           FrameSizeRange frame_size, const DelayHistogram &hist,
+                           double reliability,
+                           PDBPolicy policy = MINIMIZE_INTERVAL) -> PacketDelayBudget;
 
   void merge(const PacketDelayBudget &other);
 };

@@ -11,24 +11,21 @@
 
 namespace tsndgm {
 
-auto Stream::load_from_json(nlohmann::json &&json,
-                            const NetworkTopology &network) -> Stream {
+auto Stream::load_from_json(nlohmann::json &&json, const NetworkTopology &network) -> Stream {
   auto const frame_size = FrameSizeRange(json["frame_size"]);
-  Stream stream = {
-      .route = Route(std::move(json["route"]), network),
-      .frame_size = frame_size,
-      .period = json["period"],
-      .phase = json["phase"],
-      .objective_type = json_get_or_default<>(
-          json["objective_type"], static_cast<StreamObjective>(TARDINESS)),
-      .e2e_latency = json["e2e_latency"],
-      .jitter = json["jitter"],
-      .pcp =
-          json_get_or_default<>(json["pcp"], static_cast<PCPValue>(DefaultPCP)),
-      .reliability = 1,
-      .tolerated_loss = json_get_or_default<>(
-          json["frame_loss"], std::numeric_limits<FrameIndex>::max()),
-      .name = json["name"]};
+  Stream stream = {.route = Route(std::move(json["route"]), network),
+                   .frame_size = frame_size,
+                   .period = json["period"],
+                   .phase = json["phase"],
+                   .objective_type = json_get_or_default<>(json["objective_type"],
+                                                           static_cast<StreamObjective>(TARDINESS)),
+                   .e2e_latency = json["e2e_latency"],
+                   .jitter = json["jitter"],
+                   .pcp = json_get_or_default<>(json["pcp"], static_cast<PCPValue>(DefaultPCP)),
+                   .reliability = 1,
+                   .tolerated_loss = json_get_or_default<>(json["frame_loss"],
+                                                           std::numeric_limits<FrameIndex>::max()),
+                   .name = json["name"]};
 
   if (json["pdb_map"].is_null()) {
     return stream;
@@ -36,11 +33,10 @@ auto Stream::load_from_json(nlohmann::json &&json,
 
   for (const auto &j_entry : json["pdb_map"]) {
     Link const link = Link(j_entry["link"][0], j_entry["link"][1]);
-    PDB const pdb = PDB::wireless_pdb(
-        network[link.source], network[link.target], frame_size,
-        DelayHistogram(std::filesystem::path(j_entry["histogram"])),
-        j_entry["reliability"],
-        json_get_or_default<>(j_entry["policy"], MINIMIZE_INTERVAL));
+    PDB const pdb = PDB::wireless_pdb(network[link.source], network[link.target], frame_size,
+                                      DelayHistogram(std::filesystem::path(j_entry["histogram"])),
+                                      j_entry["reliability"],
+                                      json_get_or_default<>(j_entry["policy"], MINIMIZE_INTERVAL));
     stream.pdb_map.insert({link, pdb});
     stream.reliability *= j_entry["reliability"].template get<double>();
   }
@@ -68,8 +64,7 @@ auto Stream::objective(Delay arrival_time, FrameIndex frame) const -> Delay {
   case LATENESS:
     return arrival_time - (phase + frame * period + e2e_latency);
   case TARDINESS:
-    return std::max(arrival_time - (phase + frame * period + e2e_latency),
-                    static_cast<Delay>(0));
+    return std::max(arrival_time - (phase + frame * period + e2e_latency), static_cast<Delay>(0));
   }
   std::unreachable();
 }

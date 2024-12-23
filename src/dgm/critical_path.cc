@@ -15,18 +15,16 @@
 
 namespace tsndgm {
 
-constexpr auto CriticalPath::visitor_discover_vertex(auto visitor) noexcept
-    -> TraversalStatus {
+constexpr auto CriticalPath::visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus {
   auto *v = std::get<Vertex *>(visitor);
   crit_cost_[v->id] = {0, 0};
   return CONTINUE;
 }
 
-constexpr auto
-CriticalPath::visitor_finish_edge(auto visitor) noexcept -> TraversalStatus {
+constexpr auto CriticalPath::visitor_finish_edge(auto visitor) noexcept -> TraversalStatus {
   auto [u, v, type] = std::get<Edge>(visitor);
-  Delay const uv_cost = crit_cost_[u->id].cost + u->weights[type].outgoing +
-                        v->weights[type].incoming;
+  Delay const uv_cost =
+      crit_cost_[u->id].cost + u->weights[type].outgoing + v->weights[type].incoming;
   if (uv_cost > crit_cost_[v->id].cost) {
     crit_cost_[v->id].cost = uv_cost;
     crit_cost_[v->id].pred = u->id;
@@ -34,17 +32,14 @@ CriticalPath::visitor_finish_edge(auto visitor) noexcept -> TraversalStatus {
   return CONTINUE;
 }
 
-auto CriticalPath::compute(GlobalObjective objective_type)
-    -> std::optional<CriticalPath::Result> {
+auto CriticalPath::compute(GlobalObjective objective_type) -> std::optional<CriticalPath::Result> {
   auto status = dfs_->traverse<BACKWARD>(
       sink_,
       DFSEventHandler(
           std::make_pair(DFSVisitor::DISCOVER_VERTEX,
                          [&](auto v) { return visitor_discover_vertex(v); }),
-          std::make_pair(DFSVisitor::FINISH_EDGE,
-                         [&](auto e) { return visitor_finish_edge(e); }),
-          std::make_pair(DFSVisitor::BACK_EDGE,
-                         [&](auto /*e*/) { return ABORT; })));
+          std::make_pair(DFSVisitor::FINISH_EDGE, [&](auto e) { return visitor_finish_edge(e); }),
+          std::make_pair(DFSVisitor::BACK_EDGE, [&](auto /*e*/) { return ABORT; })));
 
   if (status == COMPLETED) {
     valid = true;
@@ -56,8 +51,7 @@ auto CriticalPath::compute(GlobalObjective objective_type)
   return {};
 }
 
-auto CriticalPath::objective(GlobalObjective objective_type)
-    -> CriticalPath::Result {
+auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Result {
   switch (objective_type) {
   case MAKESPAN:
     return {crit_cost_[SINK_ID].cost, SINK_ID};
@@ -66,8 +60,7 @@ auto CriticalPath::objective(GlobalObjective objective_type)
     for (auto *op : sink_->route_pred) {
       auto d = op->weights[JOB].outgoing;
       for (auto frame : op->frames) {
-        auto objective =
-            frame.stream->objective(crit_cost_[op->id].cost + d, frame.id);
+        auto objective = frame.stream->objective(crit_cost_[op->id].cost + d, frame.id);
         if (objective > last_result_.objective) {
           last_result_ = {objective, op->id};
         }
@@ -78,8 +71,7 @@ auto CriticalPath::objective(GlobalObjective objective_type)
   std::unreachable();
 }
 
-auto CriticalPath::print(const std::vector<VertexInfo> &info,
-                         std::string indent, GlobalOpIndex id,
+auto CriticalPath::print(const std::vector<VertexInfo> &info, std::string indent, GlobalOpIndex id,
                          GlobalOpIndex parent, bool is_last_child) const
     -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>> {
   if (id == src_->id || crit_cost_[id].pred == parent) {
@@ -89,9 +81,8 @@ auto CriticalPath::print(const std::vector<VertexInfo> &info,
     co_yield e;
 
     for (auto [child_id, type] : info[id].succ) {
-      co_yield print(
-          info, std::format("{}{}", indent, is_last_child ? "   " : "│  "),
-          child_id, id, child_id == std::get<0>(info[id].succ.back()));
+      co_yield print(info, std::format("{}{}", indent, is_last_child ? "   " : "│  "), child_id, id,
+                     child_id == std::get<0>(info[id].succ.back()));
     }
   } else {
     std::tuple<std::string, GlobalOpIndex, std::string> e = {
@@ -100,8 +91,7 @@ auto CriticalPath::print(const std::vector<VertexInfo> &info,
   }
 }
 
-auto CriticalPath::print() const
-    -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>> {
+auto CriticalPath::print() const -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>> {
   std::vector<VertexInfo> info(crit_cost_.size());
 
   for (auto visitor : dfs_->traverse<BACKWARD>(sink_)) {

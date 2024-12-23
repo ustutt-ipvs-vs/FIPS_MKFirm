@@ -106,8 +106,7 @@ public:
   }
 
 private:
-  [[nodiscard]] constexpr auto
-  current_coro() const noexcept -> coroutine_handle {
+  [[nodiscard]] constexpr auto current_coro() const noexcept -> coroutine_handle {
     return coro_.promise().current_coro();
   }
   auto mark_current_coro_finished() noexcept {
@@ -142,8 +141,7 @@ private:
   friend promise_type;
 
   // used by get_return_object
-  explicit Gen(std::coroutine_handle<promise_type> coroutine) noexcept
-      : coro_(coroutine) {}
+  explicit Gen(std::coroutine_handle<promise_type> coroutine) noexcept : coro_(coroutine) {}
 
   coroutine_handle coro_;
   // protects that multiple invocations of begin() don't do an implicit
@@ -169,9 +167,7 @@ public:
 
   [[nodiscard]] auto initial_suspend() const { return std::suspend_always{}; }
 
-  [[nodiscard]] auto final_suspend() const noexcept {
-    return std::suspend_always{};
-  }
+  [[nodiscard]] auto final_suspend() const noexcept { return std::suspend_always{}; }
 
   // Disallow co_await in the generator as it makes it difficult to figure out
   // whether co_yield was called prior to calling iterator::operator*
@@ -190,9 +186,7 @@ public:
   auto yield_value(Gen<T> &&generator) noexcept {
     struct SuspendMaybe {
       constexpr SuspendMaybe(bool ready) : ready_(ready) {}
-      [[nodiscard]] constexpr auto await_ready() const noexcept -> bool {
-        return ready_;
-      }
+      [[nodiscard]] constexpr auto await_ready() const noexcept -> bool { return ready_; }
       constexpr void await_suspend(std::coroutine_handle<> h) const noexcept {}
       constexpr void await_resume() const noexcept {}
 
@@ -226,8 +220,7 @@ public:
     return static_cast<reference_type>(*value_);
   }
 
-  [[nodiscard]] constexpr auto
-  current_coro() const noexcept -> coroutine_handle {
+  [[nodiscard]] constexpr auto current_coro() const noexcept -> coroutine_handle {
     return active_.top();
   }
 
@@ -255,13 +248,11 @@ public:
 
   explicit GeneratorIterator(Gen<T> &gen) noexcept : generator_(gen) {}
 
-  friend auto operator==(const GeneratorIterator &it,
-                         sentinel_type /*unused*/) noexcept -> bool {
+  friend auto operator==(const GeneratorIterator &it, sentinel_type /*unused*/) noexcept -> bool {
     return it.generator_.current_coro().done();
   }
 
-  friend auto operator!=(const GeneratorIterator &it,
-                         sentinel_type s) noexcept -> bool {
+  friend auto operator!=(const GeneratorIterator &it, sentinel_type s) noexcept -> bool {
     return !(it == s);
   }
 
@@ -284,9 +275,7 @@ public:
     return generator_.current_coro().promise().value();
   }
 
-  auto operator->() const noexcept -> pointer {
-    return std::addressof(this->operator*());
-  }
+  auto operator->() const noexcept -> pointer { return std::addressof(this->operator*()); }
 
 private:
   Gen<T> &generator_;
@@ -295,18 +284,15 @@ private:
 } // namespace detail
 
 namespace detail {
-template <typename T>
-auto GeneratorPromise<T>::get_return_object() noexcept -> Gen<T> {
-  return Gen<T>{
-      std::coroutine_handle<GeneratorPromise<T>>::from_promise(*this)};
+template <typename T> auto GeneratorPromise<T>::get_return_object() noexcept -> Gen<T> {
+  return Gen<T>{std::coroutine_handle<GeneratorPromise<T>>::from_promise(*this)};
 }
 
 } // namespace detail
 
 template <typename T> using gen = Gen<T>;
 
-template <std::ranges::input_range Range,
-          typename T = std::ranges::range_value_t<Range>>
+template <std::ranges::input_range Range, typename T = std::ranges::range_value_t<Range>>
 static auto generate(Range &range) noexcept -> gen<T> {
   for (T &v : range) {
     co_yield v;
@@ -315,8 +301,7 @@ static auto generate(Range &range) noexcept -> gen<T> {
 }
 
 template <typename InputIterator, typename T = InputIterator::value_type>
-static auto generate(InputIterator begin,
-                     InputIterator end) noexcept -> gen<T> {
+static auto generate(InputIterator begin, InputIterator end) noexcept -> gen<T> {
   for (auto it = begin; it != end; ++it) {
     co_yield *it;
   }

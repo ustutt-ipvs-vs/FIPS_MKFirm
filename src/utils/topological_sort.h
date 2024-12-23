@@ -33,8 +33,7 @@ auto topological_sort(std::vector<T> &collection, PartialOrder &partial_order,
 }
 
 template <typename T>
-auto topological_sort(std::vector<T> &collection,
-                      PartialOrder &partial_order) -> Generator<T> {
+auto topological_sort(std::vector<T> &collection, PartialOrder &partial_order) -> Generator<T> {
   auto color = std::vector<Color>(collection.size(), WHITE);
   for (size_t i = 0; i < color.size(); i++) {
     if (color[i] == WHITE) {
@@ -45,8 +44,7 @@ auto topological_sort(std::vector<T> &collection,
 } // namespace detail
 
 template <typename T>
-auto topological_sort(std::vector<T> &collection,
-                      PartialOrder &partial_order) -> Generator<T> {
+auto topological_sort(std::vector<T> &collection, PartialOrder &partial_order) -> Generator<T> {
   co_yield detail::topological_sort(collection, partial_order);
 }
 

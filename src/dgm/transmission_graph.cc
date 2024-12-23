@@ -28,8 +28,7 @@ namespace tsndgm {
 TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage,
                                      GlobalObjective objective_type) noexcept
     : objective_type(objective_type), stream_storage_(stream_storage) {
-  processing_order_.operations.reserve(
-      stream_storage->number_of_transmissions());
+  processing_order_.operations.reserve(stream_storage->number_of_transmissions());
   for (auto [stream_ptr, f] : stream_storage->sorted_frames()) {
     add_frame(*stream_ptr, f);
   }
@@ -45,22 +44,18 @@ TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage,
 }
 
 TransmissionGraph::TransmissionGraph(const TransmissionGraph &other) noexcept
-    : objective_type(other.objective_type),
-      processing_order_(other.processing_order_),
+    : objective_type(other.objective_type), processing_order_(other.processing_order_),
       stream_storage_(other.stream_storage_), flip_log_(other.flip_log_) {
   rebuild();
 }
 
 TransmissionGraph::TransmissionGraph(TransmissionGraph &&other) noexcept
-    : objective_type(other.objective_type),
-      processing_order_(std::move(other.processing_order_)),
-      stream_storage_(other.stream_storage_),
-      flip_log_(std::move(other.flip_log_)) {
+    : objective_type(other.objective_type), processing_order_(std::move(other.processing_order_)),
+      stream_storage_(other.stream_storage_), flip_log_(std::move(other.flip_log_)) {
   rebuild();
 }
 
-auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept
-    -> TransmissionGraph & {
+auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept -> TransmissionGraph & {
   if (this == &other) {
     return *this;
   }
@@ -73,8 +68,7 @@ auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept
   return *this;
 }
 
-auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept
-    -> TransmissionGraph & {
+auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph & {
   if (this == &other) {
     return *this;
   }
@@ -88,15 +82,13 @@ auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept
 }
 
 auto TransmissionGraph::critical_path() -> const CriticalPath * {
-  if (critical_path_.valid ||
-      critical_path_.compute(objective_type).has_value()) {
+  if (critical_path_.valid || critical_path_.compute(objective_type).has_value()) {
     return &critical_path_;
   }
   return nullptr;
 }
 
-template <TraversalDirection D>
-auto TransmissionGraph::traverse() -> Generator<DFSVisitor> {
+template <TraversalDirection D> auto TransmissionGraph::traverse() -> Generator<DFSVisitor> {
   if constexpr (D == FORWARD) {
     co_yield dfs_.traverse<FORWARD>(&processing_order_.src());
   } else {
@@ -110,8 +102,7 @@ void TransmissionGraph::flip(const FlipInstruction &inst) noexcept {
   consistent_flip(inst);
 }
 
-void TransmissionGraph::flip(GlobalOpIndex op_id,
-                             LinkOpPosition new_pos) noexcept {
+void TransmissionGraph::flip(GlobalOpIndex op_id, LinkOpPosition new_pos) noexcept {
   auto &op = processing_order_[op_id];
   Link const link = {op.source->id, op.target->id};
   flip({link, op_id, new_pos});
@@ -128,8 +119,7 @@ void TransmissionGraph::undo_last_flip() noexcept {
 
 void TransmissionGraph::merge(MergeInstruction inst) noexcept {
   assert(position_[inst.first].first == position_[inst.second].first);
-  assert(processing_order_[inst.first].pcp ==
-         processing_order_[inst.second].pcp);
+  assert(processing_order_[inst.first].pcp == processing_order_[inst.second].pcp);
 
   // w.l.o.g., inst.first should come before inst.second
   if (position_[inst.first].second > position_[inst.second].second) {
@@ -140,14 +130,13 @@ void TransmissionGraph::merge(MergeInstruction inst) noexcept {
   auto related_edges = equivalence_class(inst);
   std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition> req_flips;
   for (auto &pair : related_edges) {
-    req_flips.insert({{processing_order_[pair.first].link(), pair.second},
-                      position_[pair.first].second + 1});
+    req_flips.insert(
+        {{processing_order_[pair.first].link(), pair.second}, position_[pair.first].second + 1});
   }
   consistent_flip<MOVE_BEFORE>(std::move(req_flips));
   assert(check_consistency());
-  assert(std::ranges::all_of(req_flips, [&](auto &e) {
-    return position_[e.first.second].second == e.second;
-  }));
+  assert(std::ranges::all_of(
+      req_flips, [&](auto &e) { return position_[e.first.second].second == e.second; }));
 
   // merge transmission operations (inst.first is kept)
   for (auto &pair : related_edges) {
@@ -171,8 +160,7 @@ void TransmissionGraph::merge(MergeInstruction inst) noexcept {
     for (auto *op : *transmission | std::views::drop(pos)) {
       position_[op->id].second--;
     }
-    transmission->erase(transmission->begin() +
-                        static_cast<std::ptrdiff_t>(pos));
+    transmission->erase(transmission->begin() + static_cast<std::ptrdiff_t>(pos));
     position_[pair.second].second = transmission->size();
   }
 }
@@ -189,8 +177,7 @@ void TransmissionGraph::rebuild() {
 
 void TransmissionGraph::add_frame(const Stream &stream, FrameIndex f) {
   if (stream_storage_->hyper_cycle % stream.period != 0) {
-    throw std::invalid_argument(
-        "Later added streams must fit within the same hypercycle");
+    throw std::invalid_argument("Later added streams must fit within the same hypercycle");
   }
 
   // 1. Add all transmission operations without precedence constraints
@@ -215,10 +202,9 @@ void TransmissionGraph::add_frame(const Stream &stream, FrameIndex f) {
 
 void TransmissionGraph::connect_precedence_constraints(const Stream &stream) {
   auto get_next_occurence = [&](auto it, auto link, auto f) {
-    return std::find_if(it, processing_order_[link].end(),
-                        [&](TransmissionOperation *op) {
-                          return op->frames.contains(Frame(&stream, f));
-                        });
+    return std::find_if(it, processing_order_[link].end(), [&](TransmissionOperation *op) {
+      return op->frames.contains(Frame(&stream, f));
+    });
   };
 
   // Connect stream operations via precedence constraints
@@ -276,8 +262,7 @@ void TransmissionGraph::consistent_flip(const FlipInstruction &inst) noexcept {
 
 template <TransmissionGraph::FlipPolicy P>
 void TransmissionGraph::consistent_flip(
-    std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition>
-        &&req_flips) noexcept {
+    std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition> &&req_flips) noexcept {
   auto log_flip = [&](auto id, auto pos) {
     if (!flip_log_.contains(id)) {
       flip_log_.insert({id, pos});
@@ -297,16 +282,14 @@ void TransmissionGraph::consistent_flip(
     log_flip(op_id, std::get<1>(position_[op_id]));
     req_flips.erase(key);
 
-    for (LinkOpPosition cur_pos = std::get<1>(position_[op_id]);
-         cur_pos > new_pos; cur_pos = next(cur_pos)) {
+    for (LinkOpPosition cur_pos = std::get<1>(position_[op_id]); cur_pos > new_pos;
+         cur_pos = next(cur_pos)) {
       // swap positions
       auto &op = *processing_order_[link][cur_pos];
       auto &prev_op = *processing_order_[link][next(cur_pos)];
       log_flip(prev_op.id, next(cur_pos));
-      std::iter_swap(processing_order_[link].begin() +
-                         static_cast<std::ptrdiff_t>(cur_pos),
-                     processing_order_[link].begin() +
-                         static_cast<std::ptrdiff_t>(next(cur_pos)));
+      std::iter_swap(processing_order_[link].begin() + static_cast<std::ptrdiff_t>(cur_pos),
+                     processing_order_[link].begin() + static_cast<std::ptrdiff_t>(next(cur_pos)));
       if constexpr (P == MOVE_BEFORE) {
         std::get<1>(position_[op.id])--;
         std::get<1>(position_[prev_op.id])++;
@@ -352,16 +335,16 @@ auto TransmissionGraph::delete_merged_neighbors(
   return neighbors;
 }
 
-void TransmissionGraph::relink_job_predecessors(
-    TransmissionOperation *old_op, TransmissionOperation *new_op) noexcept {
+void TransmissionGraph::relink_job_predecessors(TransmissionOperation *old_op,
+                                                TransmissionOperation *new_op) noexcept {
   for (auto *op : old_op->route_pred) {
     std::ranges::replace(op->route_succ, old_op, new_op);
   }
   std::ranges::copy(old_op->route_pred, std::back_inserter(new_op->route_pred));
 }
 
-void TransmissionGraph::relink_job_successors(
-    TransmissionOperation *old_op, TransmissionOperation *new_op) noexcept {
+void TransmissionGraph::relink_job_successors(TransmissionOperation *old_op,
+                                              TransmissionOperation *new_op) noexcept {
   for (auto *op : old_op->route_succ) {
     std::ranges::replace(op->route_pred, old_op, new_op);
   }
@@ -370,17 +353,16 @@ void TransmissionGraph::relink_job_successors(
 
 template <TransmissionGraph::FlipPolicy P>
 auto TransmissionGraph::adjacent_flips(const TransmissionOperation &first,
-                                       const TransmissionOperation &second)
-    const noexcept -> Generator<FlipInstruction> {
+                                       const TransmissionOperation &second) const noexcept
+    -> Generator<FlipInstruction> {
   co_yield adjacent_flips<P>(first.route_pred, second.route_pred);
   co_yield adjacent_flips<P>(first.route_succ, second.route_succ);
 }
 
 template <TransmissionGraph::FlipPolicy P>
-auto TransmissionGraph::adjacent_flips(
-    const std::vector<TransmissionOperation *> &first,
-    const std::vector<TransmissionOperation *> &second) const noexcept
-    -> Generator<FlipInstruction> {
+auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *> &first,
+                                       const std::vector<TransmissionOperation *> &second)
+    const noexcept -> Generator<FlipInstruction> {
   auto flip_required = [](auto first, auto second) {
     if constexpr (P == MOVE_BEFORE) {
       return first < second;
@@ -396,17 +378,16 @@ auto TransmissionGraph::adjacent_flips(
     LinkOpPosition req_pos = position_[pair.second].second;
     if (req_pos < cur_pos) {
       if (flip_required(req_pos, cur_pos)) {
-        FlipInstruction inst = {.link = {op1.source->id, op1.target->id},
-                                .op_id = op1.id,
-                                .new_pos = req_pos};
+        FlipInstruction inst = {
+            .link = {op1.source->id, op1.target->id}, .op_id = op1.id, .new_pos = req_pos};
         co_yield inst;
       }
     }
   }
 }
 
-[[nodiscard]] auto TransmissionGraph::equivalence_class(
-    OperationPair pair) const noexcept -> std::deque<OperationPair> {
+[[nodiscard]] auto TransmissionGraph::equivalence_class(OperationPair pair) const noexcept
+    -> std::deque<OperationPair> {
   std::deque<OperationPair> finished;
   std::deque<OperationPair> visited = {pair};
 
@@ -429,8 +410,8 @@ auto TransmissionGraph::adjacent_flips(
   return finished;
 }
 
-[[nodiscard]] auto TransmissionGraph::related_neighbor_pairs(
-    OperationPair pair) const noexcept -> Generator<OperationPair> {
+[[nodiscard]] auto TransmissionGraph::related_neighbor_pairs(OperationPair pair) const noexcept
+    -> Generator<OperationPair> {
   assert(position_[pair.first].first == position_[pair.second].first);
 
   const auto &op1 = processing_order_[pair.first];
@@ -442,16 +423,14 @@ auto TransmissionGraph::adjacent_flips(
 
 [[nodiscard]] auto TransmissionGraph::related_neighbor_pairs(
     const std::vector<TransmissionOperation *> &first,
-    const std::vector<TransmissionOperation *> &second) noexcept
-    -> Generator<OperationPair> {
+    const std::vector<TransmissionOperation *> &second) noexcept -> Generator<OperationPair> {
   for (auto *op1 : first) {
     if (op1->id == SOURCE_ID || op1->id == SINK_ID) {
       continue;
     }
 
     auto it = std::ranges::find_if(second, [&](auto *op2) {
-      return op1->source->id == op2->source->id &&
-             op1->target->id == op2->target->id;
+      return op1->source->id == op2->source->id && op1->target->id == op2->target->id;
     });
     if (it != second.end()) {
       OperationPair pair = {op1->id, (*it)->id};
@@ -469,8 +448,7 @@ auto TransmissionGraph::check_consistency() const noexcept -> bool {
         if (transmissions[pos1]->pcp != transmissions[pos2]->pcp) {
           continue;
         }
-        for (auto _ : adjacent_flips<MOVE_BEFORE>(*transmissions[pos1],
-                                                  *transmissions[pos2])) {
+        for (auto _ : adjacent_flips<MOVE_BEFORE>(*transmissions[pos1], *transmissions[pos2])) {
           return false;
         }
       }
@@ -499,11 +477,9 @@ void TransmissionGraph::print_critical_path(std::ostream &out) const {
       const auto &op = processing_order_[id];
       op_str =
           std::format("{}: ([{},{}], {{{}}})", id, op.source->id, op.target->id,
-                      std::accumulate(op.frames.begin(), op.frames.end(),
-                                      std::string(""), [](auto s, auto frame) {
-                                        return s == ""
-                                                   ? frame.name()
-                                                   : s + ", " + frame.name();
+                      std::accumulate(op.frames.begin(), op.frames.end(), std::string(""),
+                                      [](auto s, auto frame) {
+                                        return s == "" ? frame.name() : s + ", " + frame.name();
                                       }));
     }
     std::println(out, "{}{}{}", std::get<0>(e), op_str, std::get<2>(e));

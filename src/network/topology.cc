@@ -25,8 +25,8 @@ DelayInterval::DelayInterval(nlohmann::json json) {
 }
 
 auto DeviceProperty::operator[](DeviceId id) const -> const DataLinkProperty & {
-  auto data_link_it = std::ranges::find_if(
-      out, [&](auto &data_link) { return data_link.target == id; });
+  auto data_link_it =
+      std::ranges::find_if(out, [&](auto &data_link) { return data_link.target == id; });
   return *data_link_it;
 }
 
@@ -34,8 +34,7 @@ NetworkTopology::NetworkTopology(nlohmann::json &&json) {
   for (auto &json_device : json["nodes"]) {
     const DeviceProperty device = {
         .id = json_device["id"],
-        .type = json_device.contains("type") ? DeviceType(json_device["type"])
-                                             : UNSPECIFIED,
+        .type = json_device.contains("type") ? DeviceType(json_device["type"]) : UNSPECIFIED,
         .processing_delay = DelayInterval(json_device["processing_delay"]),
         .name = json_device.contains("name") ? json_device["name"] : "",
     };
@@ -58,44 +57,35 @@ NetworkTopology::NetworkTopology(nlohmann::json &&json) {
 NetworkTopology::NetworkTopology(const std::filesystem::path &in)
     : NetworkTopology(nlohmann::json::parse(std::ifstream(in))) {}
 
-auto NetworkTopology::get_device(DeviceId device_id) const
-    -> const DeviceProperty * {
-  auto device_it = std::ranges::find_if(
-      devices_, [&](auto &device) { return device.id == device_id; });
+auto NetworkTopology::get_device(DeviceId device_id) const -> const DeviceProperty * {
+  auto device_it =
+      std::ranges::find_if(devices_, [&](auto &device) { return device.id == device_id; });
   return device_it != devices_.end() ? &(*device_it) : nullptr;
 }
 
 auto NetworkTopology::get_device_index(DeviceId device_id) const {
-  return std::ranges::find_if(
-             devices_, [&](auto &device) { return device.id == device_id; }) -
+  return std::ranges::find_if(devices_, [&](auto &device) { return device.id == device_id; }) -
          devices_.begin();
 }
 
-auto NetworkTopology::get_data_link(Link link) const
-    -> const DataLinkProperty * {
+auto NetworkTopology::get_data_link(Link link) const -> const DataLinkProperty * {
   auto source_index = get_device_index(link.source);
   if (std::cmp_greater_equal(source_index, devices_.size())) {
-    throw std::invalid_argument(
-        std::format("DeviceID does not exist: {}", link.source));
+    throw std::invalid_argument(std::format("DeviceID does not exist: {}", link.source));
   }
-  auto data_link_it =
-      std::ranges::find_if(devices_[source_index].out, [&](auto &data_link) {
-        return data_link.target == link.target;
-      });
-  return data_link_it != devices_[source_index].out.end() ? &(*data_link_it)
-                                                          : nullptr;
+  auto data_link_it = std::ranges::find_if(
+      devices_[source_index].out, [&](auto &data_link) { return data_link.target == link.target; });
+  return data_link_it != devices_[source_index].out.end() ? &(*data_link_it) : nullptr;
 }
 
-auto NetworkTopology::operator[](DeviceId device_id) const
-    -> const DeviceProperty & {
+auto NetworkTopology::operator[](DeviceId device_id) const -> const DeviceProperty & {
   return *get_device(device_id);
 }
 
 auto NetworkTopology::at(DeviceId device_id) const -> const DeviceProperty & {
   const auto *device_ptr = get_device(device_id);
   if (device_ptr == nullptr) {
-    throw std::out_of_range(
-        std::format("DeviceID does not exist: {}", device_id));
+    throw std::out_of_range(std::format("DeviceID does not exist: {}", device_id));
   }
   return *device_ptr;
 }
@@ -107,16 +97,14 @@ auto NetworkTopology::operator[](Link link) const -> const DataLinkProperty & {
 auto NetworkTopology::at(Link link) const -> const DataLinkProperty & {
   const auto *link_ptr = get_data_link(link);
   if (link_ptr == nullptr) {
-    throw std::out_of_range(
-        std::format("Link does not exist: ({}, {})", link.source, link.target));
+    throw std::out_of_range(std::format("Link does not exist: ({}, {})", link.source, link.target));
   }
   return *link_ptr;
 }
 
 void NetworkTopology::add_device(const DeviceProperty &device) {
   if (get_device(device.id) != nullptr) {
-    throw std::invalid_argument(
-        std::format("DeviceID is not unique: {}", device.id));
+    throw std::invalid_argument(std::format("DeviceID is not unique: {}", device.id));
   }
 
   devices_.push_back(device);
@@ -136,23 +124,20 @@ void NetworkTopology::add_data_link(const DataLinkProperty &data_link,
 }
 
 auto NetworkTopology::dump_to_json() const -> nlohmann::json {
-  nlohmann::json json = {{"nodes", nlohmann::json::array()},
-                         {"links", nlohmann::json::array()}};
+  nlohmann::json json = {{"nodes", nlohmann::json::array()}, {"links", nlohmann::json::array()}};
 
   for (const auto &device : devices_) {
     json["nodes"].push_back(
         {{"id", device.id},
          {"type", device.type},
-         {"processing_delay",
-          {device.processing_delay.min, device.processing_delay.max}},
+         {"processing_delay", {device.processing_delay.min, device.processing_delay.max}},
          {"name", device.name}});
     for (const auto &data_link : device.out) {
-      json["links"].push_back(
-          {{"source", data_link.source},
-           {"target", data_link.target},
-           {"type", data_link.type},
-           {"data_rate", data_link.data_rate},
-           {"propagation_delay", data_link.propagation_delay}});
+      json["links"].push_back({{"source", data_link.source},
+                               {"target", data_link.target},
+                               {"type", data_link.type},
+                               {"data_rate", data_link.data_rate},
+                               {"propagation_delay", data_link.propagation_delay}});
     }
   }
 
@@ -182,26 +167,21 @@ void Route::recompute_listeners() {
 void RouteHop::print(std::ostream &out, std::string indent, DeviceId parent,
                      bool is_last_child) const {
   if (is_talker() || find_parent(parent) == parents.cbegin()) {
-    std::println(out, "{}{}{}", indent, is_last_child ? "└──" : "├──",
-                 device->id);
+    std::println(out, "{}{}{}", indent, is_last_child ? "└──" : "├──", device->id);
     for (auto *child : childs) {
-      child->print(out,
-                   std::format("{}{}", indent, is_last_child ? "   " : "│  "),
-                   device->id, child == childs.back());
+      child->print(out, std::format("{}{}", indent, is_last_child ? "   " : "│  "), device->id,
+                   child == childs.back());
     }
   } else {
-    std::println(out, "{}{}{} (elimination)", indent,
-                 is_last_child ? "└──" : "├──", device->id);
+    std::println(out, "{}{}{} (elimination)", indent, is_last_child ? "└──" : "├──", device->id);
   }
 }
 
-void Route::add_path(const Path &path, const NetworkTopology &network,
-                     bool b_recompute_listeners) {
+void Route::add_path(const Path &path, const NetworkTopology &network, bool b_recompute_listeners) {
   RouteHop *parent = &source;
   for (DeviceId const id : path) {
     if (parent->device != nullptr && parent->device->id == id) {
-      throw std::invalid_argument(
-          "Path is invalid, containing the same hop twice");
+      throw std::invalid_argument("Path is invalid, containing the same hop twice");
     }
 
     if (hops_.contains(id)) {
@@ -228,19 +208,16 @@ void Route::add_path(const Path &path, const NetworkTopology &network,
   }
 }
 
-void Route::add_link(Link link, const NetworkTopology &network,
-                     bool b_recompute_listeners) {
+void Route::add_link(Link link, const NetworkTopology &network, bool b_recompute_listeners) {
   add_path({link.source, link.target}, network, b_recompute_listeners);
 }
 
 auto Route::get_or_create(const DeviceProperty &device) -> RouteHop & {
-  return hops_.contains(device.id)
-             ? hops_.at(device.id)
-             : hops_.insert({device.id, RouteHop(&device)}).first->second;
+  return hops_.contains(device.id) ? hops_.at(device.id)
+                                   : hops_.insert({device.id, RouteHop(&device)}).first->second;
 }
 
-void Route::add_link(const DeviceProperty &source,
-                     const DeviceProperty &target) {
+void Route::add_link(const DeviceProperty &source, const DeviceProperty &target) {
   RouteHop &source_hop = get_or_create(source);
   RouteHop &target_hop = get_or_create(target);
   if (!source_hop.has_child(target.id)) {
@@ -276,8 +253,7 @@ void Route::relink_source(const std::vector<RouteHop *> &talkers) {
   }
 }
 
-Route::Route(const Route &other)
-    : hops_(other.hops_), listeners_(other.listeners_) {
+Route::Route(const Route &other) : hops_(other.hops_), listeners_(other.listeners_) {
   copy_links(other);
   relink_source(other.talkers());
 }
@@ -336,8 +312,8 @@ auto Route::traverse_links() const
     -> Generator<std::pair<const DeviceProperty *, const DeviceProperty *>> {
   for (const auto &[device_id, hop] : hops_) {
     for (auto *child_ptr : hop.childs) {
-      std::pair<const DeviceProperty *, const DeviceProperty *> device_pair = {
-          hop.device, child_ptr->device};
+      std::pair<const DeviceProperty *, const DeviceProperty *> device_pair = {hop.device,
+                                                                               child_ptr->device};
       co_yield device_pair;
     }
   }
@@ -361,8 +337,7 @@ auto Route::traverse_listener_links() const -> Generator<Link> {
   }
 }
 
-auto Route::traverse_consecutive_links() const
-    -> Generator<std::pair<Link, Link>> {
+auto Route::traverse_consecutive_links() const -> Generator<std::pair<Link, Link>> {
   for (auto [hop1, hop2] : traverse_hops()) {
     Link link12(hop1->device->id, hop2->device->id);
     for (auto *hop3 : hop2->childs) {
@@ -379,12 +354,10 @@ auto Route::traverse_consecutive_links() const
   }
 }
 
-auto Route::traverse_hops() const
-    -> Generator<std::pair<const RouteHop *, const RouteHop *>> {
+auto Route::traverse_hops() const -> Generator<std::pair<const RouteHop *, const RouteHop *>> {
   for (const auto &[device_id, hop] : hops_) {
     for (auto *child_ptr : hop.childs) {
-      std::pair<const RouteHop *, const RouteHop *> hop_pair = {&hop,
-                                                                child_ptr};
+      std::pair<const RouteHop *, const RouteHop *> hop_pair = {&hop, child_ptr};
       co_yield hop_pair;
     }
   }

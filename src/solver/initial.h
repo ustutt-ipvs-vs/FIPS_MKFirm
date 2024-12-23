@@ -17,8 +17,7 @@ private:
   std::deque<StreamStorage> streams_;
   std::map<Link, std::vector<StreamId>> link_to_streams_;
 
-  [[nodiscard]] auto
-  get_common_link(StreamId first, StreamId second) const -> std::optional<Link>;
+  [[nodiscard]] auto get_common_link(StreamId first, StreamId second) const -> std::optional<Link>;
 };
 
 } // namespace tsndgm

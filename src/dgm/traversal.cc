@@ -78,8 +78,7 @@ auto DFSTraversal::VisitorState<FORWARD>::Iterator::setup(Type type)
   switch (type) {
   [[likely]] case FIFO: {
     type_ = FIFO;
-    const auto *pcp_successor =
-        traversal_->get_pcp_neighbor<FORWARD>(*state_->op);
+    const auto *pcp_successor = traversal_->get_pcp_neighbor<FORWARD>(*state_->op);
     if (pcp_successor != nullptr) {
       it_ = pcp_successor->route_pred.cbegin();
       end_ = pcp_successor->route_pred.cend();
@@ -149,8 +148,7 @@ auto DFSTraversal::VisitorState<BACKWARD>::Iterator::setup(Type type)
 }
 
 template <TraversalDirection D>
-auto DFSTraversal::VisitorState<D>::operator=(
-    const DFSTraversal::VisitorState<D> &other)
+auto DFSTraversal::VisitorState<D>::operator=(const DFSTraversal::VisitorState<D> &other)
     -> DFSTraversal::VisitorState<D> & {
   if (this == &other) {
     return *this;
@@ -171,23 +169,20 @@ DFSTraversal::DFSTraversal(const ProcessingOrder *processing_order,
     : processing_order_(processing_order), position_(position),
       color_(processing_order->total_operations) {}
 
-template <TraversalDirection D>
-auto DFSTraversal::get_pcp_neighbor(Vertex &op) const -> Vertex * {
+template <TraversalDirection D> auto DFSTraversal::get_pcp_neighbor(Vertex &op) const -> Vertex * {
   if (op.id <= SINK_ID) {
     return nullptr;
   }
 
   auto [operations, pos] = (*position_)[op.id];
   if constexpr (D == BACKWARD) {
-    auto it =
-        std::ranges::find_if((*operations | std::views::reverse |
-                              std::views::drop(operations->size() - pos)),
-                             [&](auto &op1) { return op1->pcp == op.pcp; });
+    auto it = std::ranges::find_if(
+        (*operations | std::views::reverse | std::views::drop(operations->size() - pos)),
+        [&](auto &op1) { return op1->pcp == op.pcp; });
     return it == operations->crend() ? nullptr : *it;
   } else {
-    auto it =
-        std::ranges::find_if((*operations | std::views::drop(pos)),
-                             [&](auto &op1) { return op1->pcp == op.pcp; });
+    auto it = std::ranges::find_if((*operations | std::views::drop(pos)),
+                                   [&](auto &op1) { return op1->pcp == op.pcp; });
     return it == operations->cend() ? nullptr : *it;
   }
 }

@@ -16,8 +16,7 @@ struct StreamStorage {
   StreamStorage() = default;
   StreamStorage(const std::vector<Stream> &streams);
   StreamStorage(nlohmann::json &&json, const NetworkTopology &network);
-  StreamStorage(const std::filesystem::path &in,
-                const NetworkTopology &network);
+  StreamStorage(const std::filesystem::path &in, const NetworkTopology &network);
 
   StreamStorage(const StreamStorage &other) = default;
   auto operator=(const StreamStorage &) -> StreamStorage & = default;

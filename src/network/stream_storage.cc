@@ -13,17 +13,16 @@
 namespace tsndgm {
 
 StreamStorage::StreamStorage(const std::vector<Stream> &streams) {
-  hyper_cycle = std::ranges::fold_left(
-      streams, static_cast<Delay>(1),
-      [](Delay h, auto &stream) { return std::lcm(h, stream.period); });
+  hyper_cycle = std::ranges::fold_left(streams, static_cast<Delay>(1), [](Delay h, auto &stream) {
+    return std::lcm(h, stream.period);
+  });
   for (auto stream : streams) {
     stream.populate_wireline_pdbs();
     this->streams.push_back(std::move(stream));
   }
 }
 
-StreamStorage::StreamStorage(nlohmann::json &&json,
-                             const NetworkTopology &network) {
+StreamStorage::StreamStorage(nlohmann::json &&json, const NetworkTopology &network) {
   std::vector<Stream> streams;
   for (auto &json_stream : json) {
     streams.push_back(Stream::load_from_json(std::move(json_stream), network));
@@ -31,8 +30,7 @@ StreamStorage::StreamStorage(nlohmann::json &&json,
   *this = StreamStorage(streams);
 }
 
-StreamStorage::StreamStorage(const std::filesystem::path &in,
-                             const NetworkTopology &network)
+StreamStorage::StreamStorage(const std::filesystem::path &in, const NetworkTopology &network)
     : StreamStorage(nlohmann::json::parse(std::ifstream(in)), network) {}
 
 auto StreamStorage::frames() const -> Generator<Frame> {
@@ -54,8 +52,7 @@ auto StreamStorage::sorted_frames() const -> Generator<Frame> {
   }
 }
 
-void StreamStorage::specify_frame_order(
-    std::vector<Frame> &&sorted_frames) const {
+void StreamStorage::specify_frame_order(std::vector<Frame> &&sorted_frames) const {
   sorted_frames_ = std::move(sorted_frames);
 }
 

@@ -51,8 +51,7 @@ struct TransmissionOperation {
 };
 
 using LinkTransmissions = std::vector<TransmissionOperation *>;
-using OperationPosition =
-    std::vector<std::pair<LinkTransmissions *, LinkOpPosition>>;
+using OperationPosition = std::vector<std::pair<LinkTransmissions *, LinkOpPosition>>;
 
 [[maybe_unused]] static constexpr GlobalOpIndex SOURCE_ID = 0;
 [[maybe_unused]] static constexpr GlobalOpIndex SINK_ID = 1;
@@ -70,14 +69,10 @@ struct ProcessingOrder {
   auto operator=(ProcessingOrder &&other) noexcept -> ProcessingOrder &;
   ~ProcessingOrder() = default;
 
-  [[nodiscard]] auto
-  operator[](const Link &link) noexcept -> LinkTransmissions &;
-  [[nodiscard]] auto
-  operator[](const Link &link) const noexcept -> const LinkTransmissions &;
-  [[nodiscard]] auto
-  operator[](GlobalOpIndex id) noexcept -> TransmissionOperation &;
-  [[nodiscard]] auto
-  operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation &;
+  [[nodiscard]] auto operator[](const Link &link) noexcept -> LinkTransmissions &;
+  [[nodiscard]] auto operator[](const Link &link) const noexcept -> const LinkTransmissions &;
+  [[nodiscard]] auto operator[](GlobalOpIndex id) noexcept -> TransmissionOperation &;
+  [[nodiscard]] auto operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation &;
 
   [[nodiscard]] auto src() noexcept -> TransmissionOperation &;
   [[nodiscard]] auto src() const noexcept -> const TransmissionOperation &;

@@ -45,8 +45,7 @@ template <typename T> struct Interval {
   }
 };
 
-template <typename T>
-auto json_get_or_default(nlohmann::json j, T default_value) -> T {
+template <typename T> auto json_get_or_default(nlohmann::json j, T default_value) -> T {
   return (j.is_null() ? default_value : j.template get<T>());
 }
 

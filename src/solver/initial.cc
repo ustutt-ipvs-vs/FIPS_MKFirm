@@ -19,8 +19,7 @@ EffectiveRelease::EffectiveRelease(const StreamStorage *stream_storage)
     auto g = TransmissionGraph(&streams_.back());
     stream_graphs_.emplace_back(std::move(g));
 
-    for (auto [dev1, dev2] :
-         stream_storage->streams[i].route.traverse_links()) {
+    for (auto [dev1, dev2] : stream_storage->streams[i].route.traverse_links()) {
       Link const link(dev1->id, dev2->id);
       auto it = link_to_streams_.find(link);
       if (it == link_to_streams_.end()) {
@@ -63,11 +62,9 @@ auto EffectiveRelease::generate() -> std::vector<Frame> {
           continue;
         }
 
-        FrameIndex f2 = (f1 * stream1.period + crit_cost1 - crit_cost2 - 1) /
-                        stream2.period;
-        auto f2_it = std::ranges::find_if(frames, [f2, &stream2](auto &f) {
-          return f.stream == &stream2 && f.id == f2;
-        });
+        FrameIndex f2 = (f1 * stream1.period + crit_cost1 - crit_cost2 - 1) / stream2.period;
+        auto f2_it = std::ranges::find_if(
+            frames, [f2, &stream2](auto &f) { return f.stream == &stream2 && f.id == f2; });
         if (f2_it != frames.end()) {
           partial_order[i + f1].push_back(f2_it - frames.begin());
         }
@@ -79,8 +76,8 @@ auto EffectiveRelease::generate() -> std::vector<Frame> {
   return topological_sort<Frame>(frames, partial_order).collect(n);
 }
 
-auto EffectiveRelease::get_common_link(StreamId first, StreamId second) const
-    -> std::optional<Link> {
+auto EffectiveRelease::get_common_link(StreamId first,
+                                       StreamId second) const -> std::optional<Link> {
   for (const auto &[link, streams] : link_to_streams_) {
     auto it_first = std::ranges::find(streams, first);
     if (it_first == streams.end()) {

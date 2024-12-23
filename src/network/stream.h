@@ -33,23 +33,19 @@ struct Stream {
   std::string name;
   PDBMap pdb_map;
 
-  static auto load_from_json(nlohmann::json &&json,
-                             const NetworkTopology &network) -> Stream;
+  static auto load_from_json(nlohmann::json &&json, const NetworkTopology &network) -> Stream;
 
   void populate_wireline_pdbs();
 
   [[nodiscard]] auto frames(Delay hyper_cycle) const -> Generator<FrameIndex>;
-  [[nodiscard]] auto objective(Delay arrival_time,
-                               FrameIndex frame) const -> Delay;
+  [[nodiscard]] auto objective(Delay arrival_time, FrameIndex frame) const -> Delay;
 };
 
 struct Frame {
   const Stream *stream;
   FrameIndex id;
 
-  [[nodiscard]] auto name() const -> std::string {
-    return std::format("{}#{}", stream->name, id);
-  }
+  [[nodiscard]] auto name() const -> std::string { return std::format("{}#{}", stream->name, id); }
   auto operator<=>(const Frame &other) const {
     return stream == other.stream ? id <=> other.id : stream <=> other.stream;
   }

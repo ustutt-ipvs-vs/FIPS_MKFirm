@@ -8,8 +8,7 @@
 using namespace tsndgm;
 
 int main(int argc, char **argv) {
-  argparse::ArgumentParser program(
-      "Heuristics for Wireless IEEE 802.1Qbv Scheduling");
+  argparse::ArgumentParser program("Heuristics for Wireless IEEE 802.1Qbv Scheduling");
   program.add_argument("-n", "--network")
       .default_value(std::string("../data/network.json"))
       .required()

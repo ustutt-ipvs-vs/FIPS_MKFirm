@@ -23,14 +23,12 @@ using MergeInstruction = OperationPair;
 struct TransmissionGraph {
   GlobalObjective objective_type;
 
-  explicit TransmissionGraph(
-      const StreamStorage *stream_storage,
-      GlobalObjective objective_type = MAKESPAN) noexcept;
+  explicit TransmissionGraph(const StreamStorage *stream_storage,
+                             GlobalObjective objective_type = MAKESPAN) noexcept;
 
   template <typename T>
-  static auto
-  build_from_heuristic(const StreamStorage *stream_storage,
-                       GlobalObjective objective_type = MAKESPAN) noexcept {
+  static auto build_from_heuristic(const StreamStorage *stream_storage,
+                                   GlobalObjective objective_type = MAKESPAN) noexcept {
     T heuristic(stream_storage);
     stream_storage->specify_frame_order(heuristic.generate());
     return TransmissionGraph(stream_storage, objective_type);
@@ -38,14 +36,12 @@ struct TransmissionGraph {
 
   TransmissionGraph(const TransmissionGraph &other) noexcept;
   TransmissionGraph(TransmissionGraph &&other) noexcept;
-  auto
-  operator=(const TransmissionGraph &other) noexcept -> TransmissionGraph &;
+  auto operator=(const TransmissionGraph &other) noexcept -> TransmissionGraph &;
   auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
 
   auto critical_path() -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
-  template <TraversalDirection D>
-  [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;
+  template <TraversalDirection D> [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;
 
   void flip(const FlipInstruction &inst) noexcept;
   void flip(GlobalOpIndex op_id, LinkOpPosition new_pos) noexcept;
@@ -53,8 +49,7 @@ struct TransmissionGraph {
 
   void merge(MergeInstruction inst) noexcept;
 
-  auto
-  operator[](const Link &link) const noexcept -> const LinkTransmissions & {
+  auto operator[](const Link &link) const noexcept -> const LinkTransmissions & {
     return processing_order_[link];
   }
   auto operator[](GlobalOpIndex id) const noexcept
@@ -87,15 +82,13 @@ private:
   void recompute_positions(Link link);
 
   void consistent_flip(const FlipInstruction &inst) noexcept;
+  template <FlipPolicy P> void consistent_flip(const FlipInstruction &inst) noexcept;
   template <FlipPolicy P>
-  void consistent_flip(const FlipInstruction &inst) noexcept;
-  template <FlipPolicy P>
-  void consistent_flip(std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition>
-                           &&req_flips) noexcept;
+  void
+  consistent_flip(std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition> &&req_flips) noexcept;
 
-  static auto delete_merged_neighbors(
-      const std::deque<OperationPair> &related_edges,
-      std::vector<TransmissionOperation *> &neighbors) noexcept
+  static auto delete_merged_neighbors(const std::deque<OperationPair> &related_edges,
+                                      std::vector<TransmissionOperation *> &neighbors) noexcept
       -> std::vector<TransmissionOperation *> &;
   static void relink_job_predecessors(TransmissionOperation *old_op,
                                       TransmissionOperation *new_op) noexcept;
@@ -103,23 +96,21 @@ private:
                                     TransmissionOperation *new_op) noexcept;
 
   template <FlipPolicy P>
-  [[nodiscard]] auto adjacent_flips(const TransmissionOperation &first,
-                                    const TransmissionOperation &second)
-      const noexcept -> Generator<FlipInstruction>;
-  template <FlipPolicy P>
   [[nodiscard]] auto
-  adjacent_flips(const std::vector<TransmissionOperation *> &first,
-                 const std::vector<TransmissionOperation *> &second)
+  adjacent_flips(const TransmissionOperation &first,
+                 const TransmissionOperation &second) const noexcept -> Generator<FlipInstruction>;
+  template <FlipPolicy P>
+  [[nodiscard]] auto adjacent_flips(const std::vector<TransmissionOperation *> &first,
+                                    const std::vector<TransmissionOperation *> &second)
       const noexcept -> Generator<FlipInstruction>;
 
-  [[nodiscard]] auto equivalence_class(OperationPair pair) const noexcept
-      -> std::deque<OperationPair>;
-  [[nodiscard]] auto related_neighbor_pairs(OperationPair pair) const noexcept
-      -> Generator<OperationPair>;
+  [[nodiscard]] auto
+  equivalence_class(OperationPair pair) const noexcept -> std::deque<OperationPair>;
+  [[nodiscard]] auto
+  related_neighbor_pairs(OperationPair pair) const noexcept -> Generator<OperationPair>;
   [[nodiscard]] static auto related_neighbor_pairs(
       const std::vector<TransmissionOperation *> &first,
-      const std::vector<TransmissionOperation *> &second) noexcept
-      -> Generator<OperationPair>;
+      const std::vector<TransmissionOperation *> &second) noexcept -> Generator<OperationPair>;
 };
 
 } // namespace tsndgm

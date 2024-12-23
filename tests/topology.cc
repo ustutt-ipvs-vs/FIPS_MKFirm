@@ -46,8 +46,7 @@ TEST_F(TopologyTest, LineTopology) {
       EXPECT_EQ(network1[link].target, network[link].target);
       EXPECT_EQ(network1[link].type, network1[link].type);
       EXPECT_EQ(network1[link].data_rate, network1[link].data_rate);
-      EXPECT_EQ(network1[link].propagation_delay,
-                network1[link].propagation_delay);
+      EXPECT_EQ(network1[link].propagation_delay, network1[link].propagation_delay);
     }
   }
 }
@@ -63,21 +62,18 @@ TEST_F(TopologyTest, GridTopology) {
     for (DeviceId j = 0; j < N; j++) {
       const DeviceProperty device = {
           .id = device_id(i, j),
-          .type = (i == 0 || j == 0 || i == N - 1 || j == N - 1) ? END_DEVICE
-                                                                 : TSN_BRIDGE,
+          .type = (i == 0 || j == 0 || i == N - 1 || j == N - 1) ? END_DEVICE : TSN_BRIDGE,
       };
       network.add_device(device);
 
       if (i > 0) {
-        const Link link = {.source = device_id(i - 1, j),
-                           .target = device_id(i, j)};
+        const Link link = {.source = device_id(i - 1, j), .target = device_id(i, j)};
         const DataLinkProperty data_link = {link, WIRED, Ethernet100Mbps, 50};
         network.add_data_link(data_link);
         route.add_link(link, network, false);
       }
       if (j > 0) {
-        const Link link = {.source = device_id(i, j - 1),
-                           .target = device_id(i, j)};
+        const Link link = {.source = device_id(i, j - 1), .target = device_id(i, j)};
         const DataLinkProperty data_link = {link, WIRED, Ethernet100Mbps, 50};
         network.add_data_link(data_link);
         route.add_link(link, network, i == N - 1 && j == N - 1);
@@ -91,8 +87,7 @@ TEST_F(TopologyTest, GridTopology) {
     for (DeviceId j = 0; j < N; j++) {
       EXPECT_EQ(route[device_id(i, j)].is_talker(), i == 0 && j == 0);
       EXPECT_EQ(route[device_id(i, j)].is_listener(), i == N - 1 && j == N - 1);
-      EXPECT_EQ(route[device_id(i, j)].is_replication_point(),
-                i < N - 1 && j < N - 1);
+      EXPECT_EQ(route[device_id(i, j)].is_replication_point(), i < N - 1 && j < N - 1);
       EXPECT_EQ(route[device_id(i, j)].is_elimination_point(), i > 0 && j > 0);
     }
   }
