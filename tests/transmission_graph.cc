@@ -1,4 +1,5 @@
 #include "../src/dgm/transmission_graph.h"
+#include "../src/solver/initial.h"
 #include <functional>
 #include <gtest/gtest.h>
 #include <print>
@@ -16,6 +17,8 @@ protected:
                          .frame_size = 100,
                          .period = 100000 * ((i % 5) + 1),
                          //.pcp = static_cast<PCPValue>(i),
+                         .objective_type = TARDINESS,
+                         .e2e_latency = 100000 * ((i % 5) + 1),
                          .name = std::format("S{}", i)});
       std::println("Stream {}", i);
       streams.back().route.print_tree();
@@ -78,17 +81,33 @@ protected:
   }
 
   const DeviceId Nx = 10;
-  const DeviceId Ny = 3;
-  const size_t Ns = 5;
+  const DeviceId Ny = 1;
+  const size_t Ns = 3;
   NetworkTopology network;
   StreamStorage streams;
 };
 
+TEST_F(TransmissionGraphTest, Build) { auto g = TransmissionGraph(&streams); }
+
+TEST_F(TransmissionGraphTest, CriticalPath) {
+  auto g = TransmissionGraph(&streams);
+  g.critical_path();
+  g.print_critical_path();
+}
+
+TEST_F(TransmissionGraphTest, EffectiveRelease) {
+  EffectiveRelease initial(&streams);
+  streams.specify_frame_order(initial.generate());
+
+  auto g = TransmissionGraph(&streams);
+  g.critical_path();
+  g.print_critical_path();
+}
+
 TEST_F(TransmissionGraphTest, TestOperations) {
   int N = 100;
-  TransmissionGraph g = TransmissionGraph(&streams);
-  std::println("{}", g.size());
 
+  TransmissionGraph g = TransmissionGraph(&streams, PER_FRAME);
   auto res = g.critical_path();
 
   std::mt19937 gen(std::random_device{}());
@@ -112,8 +131,9 @@ TEST_F(TransmissionGraphTest, TestOperations) {
         g.merge({op2->id, op1->id});
       }
       res = g.critical_path();
-      if (res.has_value()) {
-        std::println("{} {} {} {}", i, op1->id, new_pos, res->objective);
+      if (res != nullptr) {
+        std::println("{} {} {} {}", i, op1->id, new_pos,
+                     res->get_last().objective);
       } else {
         std::println("{} {} {} ABORTED", i, op1->id, new_pos);
         return;
@@ -121,6 +141,7 @@ TEST_F(TransmissionGraphTest, TestOperations) {
       ASSERT_EQ(g.check_consistency(), true);
     }
   }
+  g.print_critical_path();
 }
 
 } // namespace tsndgm

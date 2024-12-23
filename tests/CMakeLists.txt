@@ -14,7 +14,7 @@ add_executable(histogram_test histogram.cc)
 target_link_libraries(histogram_test PUBLIC network GTest::gtest_main)
 
 add_executable(transmission_graph_test transmission_graph.cc)
-target_link_libraries(transmission_graph_test PUBLIC dgm GTest::gtest_main)
+target_link_libraries(transmission_graph_test PUBLIC dgm initial GTest::gtest_main)
 
 gtest_discover_tests(topology_test)
 gtest_discover_tests(histogram_test)
