@@ -1,6 +1,6 @@
 #include "traversal.h"
-#include "../utils/generator.h"
 #include "transmission_operations.h"
+#include "utils/generator.h"
 #include <algorithm>
 #include <cassert>
 #include <deque>

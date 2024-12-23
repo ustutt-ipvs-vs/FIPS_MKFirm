@@ -1,8 +1,8 @@
 #include "critical_path.h"
-#include "../network/topology.h"
-#include "../utils/generator.h"
+#include "network/topology.h"
 #include "transmission_operations.h"
 #include "traversal.h"
+#include "utils/generator.h"
 #include <cassert>
 #include <cstdio>
 #include <format>

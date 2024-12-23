@@ -1,8 +1,8 @@
 #include "stream_storage.h"
-#include "../utils/generator.h"
 #include "nlohmann/json_fwd.hpp"
 #include "stream.h"
 #include "topology.h"
+#include "utils/generator.h"
 #include <bits/ranges_algo.h>
 #include <cstddef>
 #include <filesystem>

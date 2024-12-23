@@ -1,6 +1,6 @@
 #include "transmission_operations.h"
-#include "../network/histogram.h"
-#include "../network/topology.h"
+#include "network/histogram.h"
+#include "network/topology.h"
 #include <utility>
 
 namespace tsndgm {

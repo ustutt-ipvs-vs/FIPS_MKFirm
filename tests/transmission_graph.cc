@@ -1,5 +1,5 @@
-#include "../src/dgm/transmission_graph.h"
-#include "../src/solver/initial.h"
+#include "dgm/transmission_graph.h"
+#include "heuristic/initial/frame_ordering.h"
 #include <functional>
 #include <gtest/gtest.h>
 #include <print>

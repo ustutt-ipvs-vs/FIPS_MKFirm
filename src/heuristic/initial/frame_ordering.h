@@ -1,9 +1,9 @@
 #ifndef TSN_DGM_INITIAL_H
 #define TSN_DGM_INITIAL_H
 
-#include "../dgm/transmission_graph.h"
-#include "../dgm/transmission_operations.h"
-#include "../network/stream_storage.h"
+#include "dgm/transmission_graph.h"
+#include "dgm/transmission_operations.h"
+#include "network/stream_storage.h"
 
 namespace tsndgm {
 

@@ -1,8 +1,8 @@
 #ifndef TSN_DGM_TOPOLOGY_H
 #define TSN_DGM_TOPOLOGY_H
 
-#include "../utils/generator.h"
-#include "../utils/interval.h"
+#include "utils/generator.h"
+#include "utils/interval.h"
 #include <cstddef>
 #include <filesystem>
 #include <generator>

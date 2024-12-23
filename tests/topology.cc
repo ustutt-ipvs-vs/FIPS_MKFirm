@@ -1,4 +1,4 @@
-#include "../src/network/topology.h"
+#include "network/topology.h"
 #include <gtest/gtest.h>
 
 namespace tsndgm {
@@ -65,7 +65,11 @@ TEST_F(TopologyTest, GridTopology) {
           .type = (i == 0 || j == 0 || i == N - 1 || j == N - 1) ? END_DEVICE : TSN_BRIDGE,
       };
       network.add_device(device);
+    }
+  }
 
+  for (DeviceId i = 0; i < N; i++) {
+    for (DeviceId j = 0; j < N; j++) {
       if (i > 0) {
         const Link link = {.source = device_id(i - 1, j), .target = device_id(i, j)};
         const DataLinkProperty data_link = {link, WIRED, Ethernet100Mbps, 50};

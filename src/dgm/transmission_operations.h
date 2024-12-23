@@ -1,9 +1,9 @@
 #ifndef TSN_DGM_TRANSMISSION_OPERATIONS_H
 #define TSN_DGM_TRANSMISSION_OPERATIONS_H
 
-#include "../network/histogram.h"
-#include "../network/stream.h"
-#include "../network/topology.h"
+#include "network/histogram.h"
+#include "network/stream.h"
+#include "network/topology.h"
 #include <set>
 #include <vector>
 

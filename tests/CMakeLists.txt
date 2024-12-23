@@ -7,15 +7,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
-add_executable(topology_test topology.cc)
-target_link_libraries(topology_test PUBLIC network GTest::gtest_main)
+set(TESTS "topology.cc" "histogram.cc" "transmission_graph.cc")
 
-add_executable(histogram_test histogram.cc)
-target_link_libraries(histogram_test PUBLIC network GTest::gtest_main)
-
-add_executable(transmission_graph_test transmission_graph.cc)
-target_link_libraries(transmission_graph_test PUBLIC dgm initial GTest::gtest_main)
-
-gtest_discover_tests(topology_test)
-gtest_discover_tests(histogram_test)
-gtest_discover_tests(transmission_graph_test)
+foreach(source_file ${TESTS})
+  string(REPLACE ".cc" "" test_name ${source_file})
+  add_executable("${test_name}_test" ${source_file})
+  target_include_directories("${test_name}_test" PRIVATE ${PROJECT_SOURCE_DIR}/src)
+  target_link_libraries("${test_name}_test" PUBLIC tsndgm GTest::gtest_main)
+  set_target_properties("${test_name}_test" PROPERTIES OUTPUT_NAME ${test_name})
+  gtest_discover_tests("${test_name}_test")
+endforeach(source_file ${TESTS})

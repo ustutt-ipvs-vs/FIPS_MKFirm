@@ -1,7 +1,7 @@
 #include "dgm/transmission_graph.h"
+#include "heuristic/initial/frame_ordering.h"
 #include "network/stream_storage.h"
 #include "network/topology.h"
-#include "solver/initial.h"
 #include <argparse/argparse.hpp>
 #include <print>
 
@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 
   auto g = TransmissionGraph::build_from_heuristic<EffectiveRelease>(&streams);
   g.critical_path();
-  g.print_critical_path();
+  // g.print_critical_path();
 
   return 0;
 }

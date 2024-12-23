@@ -1,10 +1,10 @@
 #ifndef TSN_DGM_TRANSMISSION_GRAPH_H
 #define TSN_DGM_TRANSMISSION_GRAPH_H
 
-#include "../network/histogram.h"
-#include "../network/stream_storage.h"
-#include "../network/topology.h"
 #include "critical_path.h"
+#include "network/histogram.h"
+#include "network/stream_storage.h"
+#include "network/topology.h"
 #include "transmission_operations.h"
 #include "traversal.h"
 #include <vector>

@@ -1,12 +1,12 @@
 #include "transmission_graph.h"
-#include "../network/histogram.h"
-#include "../network/stream.h"
-#include "../network/stream_storage.h"
-#include "../network/topology.h"
-#include "../utils/generator.h"
 #include "critical_path.h"
+#include "network/histogram.h"
+#include "network/stream.h"
+#include "network/stream_storage.h"
+#include "network/topology.h"
 #include "transmission_operations.h"
 #include "traversal.h"
+#include "utils/generator.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>

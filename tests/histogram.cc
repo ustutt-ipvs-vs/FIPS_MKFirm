@@ -1,4 +1,4 @@
-#include "../src/network/histogram.h"
+#include "network/histogram.h"
 #include <gtest/gtest.h>
 
 namespace tsndgm {
