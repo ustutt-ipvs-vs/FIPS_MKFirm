@@ -27,4 +27,5 @@ FetchContent_Declare(json
 FetchContent_MakeAvailable(json)
 
 add_subdirectory(src)
+add_subdirectory(benchmarks)
 add_subdirectory(tests)
