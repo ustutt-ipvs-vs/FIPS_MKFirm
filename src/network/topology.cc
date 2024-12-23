@@ -2,6 +2,7 @@
 #include "../utils/generator.h"
 #include "nlohmann/json_fwd.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -19,7 +20,7 @@ DelayInterval::DelayInterval(nlohmann::json json) {
   if (json.is_array()) {
     *this = DelayInterval(json[0], json[1]);
   } else {
-    *this = DelayInterval(json[0]);
+    *this = DelayInterval(json.template get<Delay>());
   }
 }
 
@@ -387,6 +388,14 @@ auto Route::traverse_hops() const
       co_yield hop_pair;
     }
   }
+}
+
+[[nodiscard]] auto Route::number_of_links() const -> size_t {
+  size_t links = 0;
+  for (auto _ : traverse_links()) {
+    links++;
+  }
+  return links;
 }
 
 } // namespace tsndgm

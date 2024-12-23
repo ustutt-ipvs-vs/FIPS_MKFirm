@@ -4,6 +4,8 @@
 #include "histogram.h"
 #include "nlohmann/json_fwd.hpp"
 #include "topology.h"
+#include <algorithm>
+#include <filesystem>
 #include <limits>
 #include <utility>
 
@@ -17,6 +19,8 @@ auto Stream::load_from_json(nlohmann::json &&json,
       .frame_size = frame_size,
       .period = json["period"],
       .phase = json["phase"],
+      .objective_type = json_get_or_default<>(
+          json["objective_type"], static_cast<StreamObjective>(TARDINESS)),
       .e2e_latency = json["e2e_latency"],
       .jitter = json["jitter"],
       .pcp =
@@ -34,7 +38,8 @@ auto Stream::load_from_json(nlohmann::json &&json,
     Link const link = Link(j_entry["link"][0], j_entry["link"][1]);
     PDB const pdb = PDB::wireless_pdb(
         network[link.source], network[link.target], frame_size,
-        DelayHistogram(j_entry["histogram"]), j_entry["reliability"],
+        DelayHistogram(std::filesystem::path(j_entry["histogram"])),
+        j_entry["reliability"],
         json_get_or_default<>(j_entry["policy"], MINIMIZE_INTERVAL));
     stream.pdb_map.insert({link, pdb});
     stream.reliability *= j_entry["reliability"].template get<double>();
@@ -56,6 +61,17 @@ auto Stream::frames(Delay hyper_cycle) const -> Generator<FrameIndex> {
   for (FrameIndex f = 0; f * period < hyper_cycle; f++) {
     co_yield f;
   }
+}
+
+auto Stream::objective(Delay arrival_time, FrameIndex frame) const -> Delay {
+  switch (objective_type) {
+  case LATENESS:
+    return arrival_time - (phase + frame * period + e2e_latency);
+  case TARDINESS:
+    return std::max(arrival_time - (phase + frame * period + e2e_latency),
+                    static_cast<Delay>(0));
+  }
+  std::unreachable();
 }
 
 } // namespace tsndgm

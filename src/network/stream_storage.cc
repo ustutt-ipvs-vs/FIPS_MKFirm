@@ -1,9 +1,12 @@
 #include "stream_storage.h"
 #include "../utils/generator.h"
+#include "nlohmann/json_fwd.hpp"
 #include "stream.h"
 #include "topology.h"
 #include <bits/ranges_algo.h>
 #include <cstddef>
+#include <filesystem>
+#include <fstream>
 #include <utility>
 #include <vector>
 
@@ -18,6 +21,19 @@ StreamStorage::StreamStorage(const std::vector<Stream> &streams) {
     this->streams.push_back(std::move(stream));
   }
 }
+
+StreamStorage::StreamStorage(nlohmann::json &&json,
+                             const NetworkTopology &network) {
+  std::vector<Stream> streams;
+  for (auto &json_stream : json) {
+    streams.push_back(Stream::load_from_json(std::move(json_stream), network));
+  }
+  *this = StreamStorage(streams);
+}
+
+StreamStorage::StreamStorage(const std::filesystem::path &in,
+                             const NetworkTopology &network)
+    : StreamStorage(nlohmann::json::parse(std::ifstream(in)), network) {}
 
 auto StreamStorage::frames() const -> Generator<Frame> {
   for (const auto &stream : streams) {
@@ -38,17 +54,23 @@ auto StreamStorage::sorted_frames() const -> Generator<Frame> {
   }
 }
 
-void StreamStorage::specify_frame_order(std::vector<Frame> &&sorted_frames) {
+void StreamStorage::specify_frame_order(
+    std::vector<Frame> &&sorted_frames) const {
   sorted_frames_ = std::move(sorted_frames);
+}
+
+auto StreamStorage::number_of_frames() const -> size_t {
+  size_t c = 0;
+  for (const auto &stream : streams) {
+    c += hyper_cycle / stream.period;
+  }
+  return c;
 }
 
 auto StreamStorage::number_of_transmissions() const -> size_t {
   size_t c = 0;
   for (const auto &stream : streams) {
-    size_t stream_links = 0;
-    for (auto _ : stream.route.traverse_links()) {
-      stream_links++;
-    }
+    size_t const stream_links = stream.route.number_of_links();
     c += stream_links * (hyper_cycle / stream.period);
   }
   return c;

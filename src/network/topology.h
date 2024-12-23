@@ -205,6 +205,8 @@ public:
   traverse_consecutive_links() const -> Generator<std::pair<Link, Link>>;
   [[nodiscard]] auto traverse_hops() const
       -> Generator<std::pair<const RouteHop *, const RouteHop *>>;
+
+  [[nodiscard]] auto number_of_links() const -> size_t;
 };
 
 } // namespace tsndgm

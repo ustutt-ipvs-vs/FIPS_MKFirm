@@ -7,18 +7,24 @@
 
 namespace tsndgm {
 
+using StreamId = size_t;
+
 struct StreamStorage {
   std::vector<Stream> streams;
   Delay hyper_cycle;
 
   StreamStorage() = default;
   StreamStorage(const std::vector<Stream> &streams);
+  StreamStorage(nlohmann::json &&json, const NetworkTopology &network);
+  StreamStorage(const std::filesystem::path &in,
+                const NetworkTopology &network);
+
   StreamStorage(const StreamStorage &other) = default;
   auto operator=(const StreamStorage &) -> StreamStorage & = default;
   StreamStorage(StreamStorage &&other) = default;
   auto operator=(StreamStorage &&) -> StreamStorage & = default;
 
-  void specify_frame_order(std::vector<Frame> &&sorted_frames);
+  void specify_frame_order(std::vector<Frame> &&sorted_frames) const;
 
   using Iterator = decltype(streams)::const_iterator;
   [[nodiscard]] auto begin() const -> Iterator { return streams.begin(); }
@@ -27,10 +33,11 @@ struct StreamStorage {
   [[nodiscard]] auto frames() const -> Generator<Frame>;
   [[nodiscard]] auto sorted_frames() const -> Generator<Frame>;
 
+  [[nodiscard]] auto number_of_frames() const -> size_t;
   [[nodiscard]] auto number_of_transmissions() const -> size_t;
 
 private:
-  std::vector<Frame> sorted_frames_;
+  mutable std::vector<Frame> sorted_frames_;
 };
 
 } // namespace tsndgm
