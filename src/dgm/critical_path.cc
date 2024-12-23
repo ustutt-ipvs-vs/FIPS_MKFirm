@@ -34,7 +34,8 @@ CriticalPath::visitor_finish_edge(auto visitor) noexcept -> TraversalStatus {
   return CONTINUE;
 }
 
-auto CriticalPath::compute() -> std::optional<CriticalPath::Result> {
+auto CriticalPath::compute(GlobalObjective objective_type)
+    -> std::optional<CriticalPath::Result> {
   auto status = dfs_->traverse<BACKWARD>(
       sink_,
       DFSEventHandler(
@@ -47,12 +48,34 @@ auto CriticalPath::compute() -> std::optional<CriticalPath::Result> {
 
   if (status == COMPLETED) {
     valid = true;
-    last_result_ = {crit_cost_[sink_->id].cost, sink_};
+    return objective(objective_type);
+  }
+
+  valid = false;
+  last_result_ = {std::numeric_limits<Delay>::max(), SINK_ID};
+  return {};
+}
+
+auto CriticalPath::objective(GlobalObjective objective_type)
+    -> CriticalPath::Result {
+  switch (objective_type) {
+  case MAKESPAN:
+    return {crit_cost_[SINK_ID].cost, SINK_ID};
+  case PER_FRAME:
+    last_result_ = {0, SINK_ID};
+    for (auto *op : sink_->route_pred) {
+      auto d = op->weights[JOB].outgoing;
+      for (auto frame : op->frames) {
+        auto objective =
+            frame.stream->objective(crit_cost_[op->id].cost + d, frame.id);
+        if (objective > last_result_.objective) {
+          last_result_ = {objective, op->id};
+        }
+      }
+    }
     return last_result_;
   }
-  valid = false;
-  last_result_ = {std::numeric_limits<Delay>::max(), sink_};
-  return {};
+  std::unreachable();
 }
 
 auto CriticalPath::print(const std::vector<VertexInfo> &info,

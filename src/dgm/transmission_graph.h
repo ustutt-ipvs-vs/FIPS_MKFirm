@@ -21,9 +21,28 @@ using OperationPair = std::pair<GlobalOpIndex, GlobalOpIndex>;
 using MergeInstruction = OperationPair;
 
 struct TransmissionGraph {
-  TransmissionGraph(const StreamStorage *stream_storage);
+  GlobalObjective objective_type;
 
-  auto critical_path() -> std::optional<CriticalPath::Result>;
+  explicit TransmissionGraph(
+      const StreamStorage *stream_storage,
+      GlobalObjective objective_type = MAKESPAN) noexcept;
+
+  template <typename T>
+  static auto
+  build_from_heuristic(const StreamStorage *stream_storage,
+                       GlobalObjective objective_type = MAKESPAN) noexcept {
+    T heuristic(stream_storage);
+    stream_storage->specify_frame_order(heuristic.generate());
+    return TransmissionGraph(stream_storage, objective_type);
+  }
+
+  TransmissionGraph(const TransmissionGraph &other) noexcept;
+  TransmissionGraph(TransmissionGraph &&other) noexcept;
+  auto
+  operator=(const TransmissionGraph &other) noexcept -> TransmissionGraph &;
+  auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
+
+  auto critical_path() -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
   template <TraversalDirection D>
   [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;

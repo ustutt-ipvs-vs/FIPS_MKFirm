@@ -1,4 +1,4 @@
-add_library(transmission_graph STATIC transmission_graph.cc)
+add_library(transmission_graph STATIC transmission_graph.cc transmission_operations.cc)
 target_link_libraries(transmission_graph PUBLIC network)
 
 add_library(traversal STATIC traversal.cc)

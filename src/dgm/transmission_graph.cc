@@ -25,21 +25,74 @@
 
 namespace tsndgm {
 
-TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage)
-    : stream_storage_(stream_storage) {
+TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage,
+                                     GlobalObjective objective_type) noexcept
+    : objective_type(objective_type), stream_storage_(stream_storage) {
   processing_order_.operations.reserve(
       stream_storage->number_of_transmissions());
   for (auto [stream_ptr, f] : stream_storage->sorted_frames()) {
     add_frame(*stream_ptr, f);
   }
+
+  for (auto &op : processing_order_.operations | std::views::drop(2)) {
+    auto link = op.link();
+    processing_order_[link].push_back(&op);
+  }
+  for (const auto &stream : *stream_storage_) {
+    connect_precedence_constraints(stream);
+  }
   rebuild();
 }
 
-auto TransmissionGraph::critical_path() -> std::optional<CriticalPath::Result> {
-  if (critical_path_.valid) {
-    return critical_path_.get_last();
+TransmissionGraph::TransmissionGraph(const TransmissionGraph &other) noexcept
+    : objective_type(other.objective_type),
+      processing_order_(other.processing_order_),
+      stream_storage_(other.stream_storage_), flip_log_(other.flip_log_) {
+  rebuild();
+}
+
+TransmissionGraph::TransmissionGraph(TransmissionGraph &&other) noexcept
+    : objective_type(other.objective_type),
+      processing_order_(std::move(other.processing_order_)),
+      stream_storage_(other.stream_storage_),
+      flip_log_(std::move(other.flip_log_)) {
+  rebuild();
+}
+
+auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept
+    -> TransmissionGraph & {
+  if (this == &other) {
+    return *this;
   }
-  return critical_path_.compute();
+
+  objective_type = other.objective_type;
+  processing_order_ = other.processing_order_;
+  stream_storage_ = other.stream_storage_;
+  flip_log_ = other.flip_log_;
+  rebuild();
+  return *this;
+}
+
+auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept
+    -> TransmissionGraph & {
+  if (this == &other) {
+    return *this;
+  }
+
+  objective_type = other.objective_type;
+  std::swap(processing_order_, other.processing_order_);
+  stream_storage_ = other.stream_storage_;
+  std::swap(flip_log_, other.flip_log_);
+  rebuild();
+  return *this;
+}
+
+auto TransmissionGraph::critical_path() -> const CriticalPath * {
+  if (critical_path_.valid ||
+      critical_path_.compute(objective_type).has_value()) {
+    return &critical_path_;
+  }
+  return nullptr;
 }
 
 template <TraversalDirection D>
@@ -125,13 +178,6 @@ void TransmissionGraph::merge(MergeInstruction inst) noexcept {
 }
 
 void TransmissionGraph::rebuild() {
-  for (auto &op : processing_order_.operations | std::views::drop(2)) {
-    auto link = op.link();
-    processing_order_[link].push_back(&op);
-  }
-  for (const auto &stream : *stream_storage_) {
-    connect_precedence_constraints(stream);
-  }
   position_.resize(processing_order_.total_operations);
   for (auto link : std::views::keys(processing_order_.map)) {
     recompute_positions(link);
@@ -438,6 +484,10 @@ auto TransmissionGraph::is_valid(GlobalOpIndex id) const noexcept -> bool {
 }
 
 void TransmissionGraph::print_critical_path(std::ostream &out) const {
+  if (!critical_path_.valid) {
+    return;
+  }
+
   for (auto e : critical_path_.print()) {
     GlobalOpIndex const id = std::get<1>(e);
     std::string op_str;

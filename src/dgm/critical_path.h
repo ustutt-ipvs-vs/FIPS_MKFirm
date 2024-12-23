@@ -5,12 +5,19 @@
 
 namespace tsndgm {
 
+enum GlobalObjective : std::uint8_t { MAKESPAN, PER_FRAME };
+
 struct CriticalPath {
   struct Result {
     Delay objective;
-    Vertex *critical_vertex;
+    GlobalOpIndex critical_vertex;
   };
-  bool valid;
+  struct CriticalCost {
+    Delay cost;
+    GlobalOpIndex pred;
+  };
+
+  bool valid{false};
 
   CriticalPath() = default;
   CriticalPath(DFSTraversal *dfs, const ProcessingOrder &processing_order)
@@ -18,21 +25,26 @@ struct CriticalPath {
         sink_(&processing_order.sink()),
         crit_cost_(processing_order.total_operations) {};
 
-  auto compute() -> std::optional<Result>;
-  constexpr auto get_last() -> Result { return last_result_; }
+  CriticalPath(CriticalPath &&) = default;
+  CriticalPath(const CriticalPath &) = default;
+  auto operator=(CriticalPath &&) -> CriticalPath & = default;
+  auto operator=(const CriticalPath &) -> CriticalPath & = default;
+  ~CriticalPath() = default;
+
+  auto compute(GlobalObjective objective_type) -> std::optional<Result>;
+  [[nodiscard]] auto get_last() const -> Result { return last_result_; }
   [[nodiscard]] auto print() const
       -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
+
+  auto operator[](GlobalOpIndex id) const noexcept -> CriticalCost {
+    return crit_cost_[id];
+  }
 
   constexpr auto
   visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus;
   constexpr auto visitor_finish_edge(auto visitor) noexcept -> TraversalStatus;
 
 private:
-  struct CriticalCost {
-    Delay cost;
-    GlobalOpIndex pred;
-  };
-
   DFSTraversal *dfs_;
   const Vertex *src_, *sink_;
   Result last_result_;
@@ -47,6 +59,7 @@ private:
                            std::string indent, GlobalOpIndex id,
                            GlobalOpIndex parent, bool is_last_child) const
       -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
+  [[nodiscard]] auto objective(GlobalObjective objective_type) -> Result;
 };
 
 } // namespace tsndgm

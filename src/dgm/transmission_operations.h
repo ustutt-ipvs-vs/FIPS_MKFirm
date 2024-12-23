@@ -26,32 +26,11 @@ struct TransmissionWeights {
                                .machine = {0, pdb.d_trans.max},
                                .job = {0, pdb.d_total.max},
                                .pdb = pdb};
-  };
-
-  auto operator[](EdgeType type) const -> WeightPair {
-    switch (type) {
-    case FIFO:
-      return fifo;
-    case MACHINE:
-      return machine;
-    case JOB:
-      return job;
-    default:
-      return {0, 0};
-    }
   }
 
-  void merge(const TransmissionWeights &other) {
-    auto merge_pairs = [&](auto &first, auto &second, auto pdb_val) {
-      first.incoming = std::max(first.incoming, second.incoming);
-      first.outgoing = pdb_val;
-    };
+  auto operator[](EdgeType type) const -> WeightPair;
 
-    pdb.merge(other.pdb);
-    merge_pairs(fifo, other.fifo, pdb.d_trans.max);
-    merge_pairs(machine, other.machine, pdb.d_trans.max);
-    merge_pairs(job, other.job, pdb.d_total.max);
-  }
+  void merge(const TransmissionWeights &other);
 };
 
 using GlobalOpIndex = size_t;
@@ -75,49 +54,38 @@ using LinkTransmissions = std::vector<TransmissionOperation *>;
 using OperationPosition =
     std::vector<std::pair<LinkTransmissions *, LinkOpPosition>>;
 
-static constexpr GlobalOpIndex SOURCE_ID = 0;
-static constexpr GlobalOpIndex SINK_ID = 1;
+[[maybe_unused]] static constexpr GlobalOpIndex SOURCE_ID = 0;
+[[maybe_unused]] static constexpr GlobalOpIndex SINK_ID = 1;
 
 struct ProcessingOrder {
   std::vector<TransmissionOperation> operations;
   std::map<Link, LinkTransmissions> map;
-  GlobalOpIndex total_operations;
+  GlobalOpIndex total_operations{2};
 
-  ProcessingOrder() {
-    operations.push_back({.id = SOURCE_ID});
-    operations.push_back({.id = SINK_ID});
-    total_operations += 2;
-  }
+  ProcessingOrder();
+
+  ProcessingOrder(const ProcessingOrder &other) noexcept;
+  ProcessingOrder(ProcessingOrder &&other) noexcept;
+  auto operator=(const ProcessingOrder &other) noexcept -> ProcessingOrder &;
+  auto operator=(ProcessingOrder &&other) noexcept -> ProcessingOrder &;
+  ~ProcessingOrder() = default;
 
   [[nodiscard]] auto
-  operator[](const Link &link) noexcept -> LinkTransmissions & {
-    return map[link];
-  }
+  operator[](const Link &link) noexcept -> LinkTransmissions &;
   [[nodiscard]] auto
-  operator[](const Link &link) const noexcept -> const LinkTransmissions & {
-    return map.at(link);
-  }
+  operator[](const Link &link) const noexcept -> const LinkTransmissions &;
   [[nodiscard]] auto
-  operator[](GlobalOpIndex id) noexcept -> TransmissionOperation & {
-    return operations[id];
-  }
+  operator[](GlobalOpIndex id) noexcept -> TransmissionOperation &;
   [[nodiscard]] auto
-  operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation & {
-    return operations[id];
-  }
+  operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation &;
 
-  [[nodiscard]] auto src() noexcept -> TransmissionOperation & {
-    return operations[SOURCE_ID];
-  }
-  [[nodiscard]] auto src() const noexcept -> const TransmissionOperation & {
-    return operations[SOURCE_ID];
-  }
-  [[nodiscard]] auto sink() noexcept -> TransmissionOperation & {
-    return operations[SINK_ID];
-  }
-  [[nodiscard]] auto sink() const noexcept -> const TransmissionOperation & {
-    return operations[SINK_ID];
-  }
+  [[nodiscard]] auto src() noexcept -> TransmissionOperation &;
+  [[nodiscard]] auto src() const noexcept -> const TransmissionOperation &;
+  [[nodiscard]] auto sink() noexcept -> TransmissionOperation &;
+  [[nodiscard]] auto sink() const noexcept -> const TransmissionOperation &;
+
+private:
+  void relink_pointers() noexcept;
 };
 
 } // namespace tsndgm

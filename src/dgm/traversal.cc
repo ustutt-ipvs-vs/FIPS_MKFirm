@@ -205,10 +205,8 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
     VisitorState<D> next = stack.front();
     stack.pop_front();
 
-    if (next.it == next.end()) {
-      Edge e = D == BACKWARD ? Edge(next.it.last(), next.op, JOB)
-                             : Edge(next.op, next.it.last(), JOB);
-      co_yield visitor.update({e, DFSVisitor::FINISH_EDGE});
+    if (next.tree_edge) {
+      co_yield visitor.update({*next.tree_edge, DFSVisitor::FINISH_EDGE});
     }
 
     while (next.it != next.end()) {
@@ -221,6 +219,7 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
       [[likely]] case WHITE: {
         co_yield visitor.update({e, DFSVisitor::TREE_EDGE});
 
+        next.tree_edge = e;
         stack.push_front(++next);
         color_[v->id] = GRAY;
 

@@ -125,6 +125,7 @@ struct DFSTraversal {
     LinkOpPosition pos;
     PCPValue pcp;
     Iterator it;
+    std::optional<Edge> tree_edge;
 
     VisitorState(const DFSTraversal *traversal, Vertex *op)
         : op(op), it(traversal, this, Iterator::JOB), traversal_(traversal) {};
@@ -135,7 +136,7 @@ struct DFSTraversal {
           traversal_(traversal) {};
     VisitorState(const VisitorState &other)
         : op(other.op), operations(other.operations), pos(other.pos),
-          pcp(other.pcp), it(other.it) {
+          pcp(other.pcp), it(other.it), tree_edge(other.tree_edge) {
       it.state_ = this;
     }
 
