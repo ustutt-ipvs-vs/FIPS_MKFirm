@@ -13,6 +13,7 @@
 #include <stack>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 // generator<T>
 //
@@ -90,6 +91,19 @@ public:
   [[nodiscard]] auto empty() const noexcept -> bool = delete;
   // NOTE: weird behavior means that recursive generators don't attach to the
   // caller if you initiate them with the instantiation of an iterator.
+
+  auto collect(size_t n = 0) -> std::vector<T> {
+    size_t i = 0;
+    std::vector<T> v(n);
+    for (auto it = begin(); it != end(); ++it, ++i) {
+      if (i < n) {
+        v[i] = *it;
+      } else {
+        v.push_back(*it);
+      }
+    }
+    return v;
+  }
 
 private:
   [[nodiscard]] constexpr auto
