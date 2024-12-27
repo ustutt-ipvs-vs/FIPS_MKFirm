@@ -84,38 +84,36 @@ void ProcessingOrder::relink_pointers() noexcept {
   }
 }
 
-[[nodiscard]] auto ProcessingOrder::operator[](const Link &link) noexcept -> LinkTransmissions & {
+auto ProcessingOrder::operator[](const Link &link) noexcept -> LinkTransmissions & {
   return map[link];
 }
 
-[[nodiscard]] auto
-ProcessingOrder::operator[](const Link &link) const noexcept -> const LinkTransmissions & {
+auto ProcessingOrder::operator[](const Link &link) const noexcept -> const LinkTransmissions & {
   return map.at(link);
 }
 
-[[nodiscard]] auto
-ProcessingOrder::operator[](GlobalOpIndex id) noexcept -> TransmissionOperation & {
+auto ProcessingOrder::operator[](GlobalOpIndex id) noexcept -> TransmissionOperation & {
   return operations[id];
 }
 
-[[nodiscard]] auto
-ProcessingOrder::operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation & {
+auto ProcessingOrder::operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation & {
   return operations[id];
 }
 
-[[nodiscard]] auto ProcessingOrder::src() noexcept -> TransmissionOperation & {
+auto ProcessingOrder::number_of_transmissions(const Link &link) const noexcept -> LinkOpPosition {
+  auto it = map.find(link);
+  return it == map.end() ? 0 : it->second.size();
+}
+
+auto ProcessingOrder::src() noexcept -> TransmissionOperation & { return operations[SOURCE_ID]; }
+
+auto ProcessingOrder::src() const noexcept -> const TransmissionOperation & {
   return operations[SOURCE_ID];
 }
 
-[[nodiscard]] auto ProcessingOrder::src() const noexcept -> const TransmissionOperation & {
-  return operations[SOURCE_ID];
-}
+auto ProcessingOrder::sink() noexcept -> TransmissionOperation & { return operations[SINK_ID]; }
 
-[[nodiscard]] auto ProcessingOrder::sink() noexcept -> TransmissionOperation & {
-  return operations[SINK_ID];
-}
-
-[[nodiscard]] auto ProcessingOrder::sink() const noexcept -> const TransmissionOperation & {
+auto ProcessingOrder::sink() const noexcept -> const TransmissionOperation & {
   return operations[SINK_ID];
 }
 

@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_CRITICAL_PATH_H
-#define TSN_DGM_CRITICAL_PATH_H
+#pragma once
 
 #include "traversal.h"
 
@@ -21,8 +20,9 @@ struct CriticalPath {
 
   CriticalPath() = default;
   CriticalPath(DFSTraversal *dfs, const ProcessingOrder &processing_order)
-      : dfs_(dfs), src_(&processing_order.src()), sink_(&processing_order.sink()),
-        crit_cost_(processing_order.total_operations) {};
+      : dfs_(dfs), processing_order_(&processing_order), src_(&processing_order.src()),
+        sink_(&processing_order.sink()), crit_cost_(processing_order.total_operations),
+        cycle_pred_(processing_order.total_operations) {};
 
   CriticalPath(CriticalPath &&) = default;
   CriticalPath(const CriticalPath &) = default;
@@ -39,13 +39,17 @@ struct CriticalPath {
 
   constexpr auto visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus;
   constexpr auto visitor_finish_edge(auto visitor) noexcept -> TraversalStatus;
+  constexpr auto visitor_tree_edge(auto visitor) noexcept -> TraversalStatus;
+  constexpr auto visitor_back_edge(auto visitor) noexcept -> TraversalStatus;
 
 private:
   DFSTraversal *dfs_;
+  const ProcessingOrder *processing_order_;
   const Vertex *src_, *sink_;
   Result last_result_;
 
   std::vector<CriticalCost> crit_cost_;
+  std::vector<CriticalCost> cycle_pred_;
 
   struct VertexInfo {
     std::vector<std::pair<GlobalOpIndex, EdgeType>> succ;
@@ -59,5 +63,3 @@ private:
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_CRITICAL_PATH_H

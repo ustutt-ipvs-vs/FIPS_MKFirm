@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_TRAVERSAL_H
-#define TSN_DGM_TRAVERSAL_H
+#pragma once
 
 #include "transmission_operations.h"
 
@@ -171,5 +170,3 @@ private:
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_TRAVERSAL_H

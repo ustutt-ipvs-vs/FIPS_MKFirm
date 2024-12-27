@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_TRANSMISSION_GRAPH_H
-#define TSN_DGM_TRANSMISSION_GRAPH_H
+#pragma once
 
 #include "critical_path.h"
 #include "network/histogram.h"
@@ -19,20 +18,20 @@ struct FlipInstruction {
 
 using OperationPair = std::pair<GlobalOpIndex, GlobalOpIndex>;
 using MergeInstruction = OperationPair;
+using InitialTransmissionOrder = std::vector<std::pair<Frame, RouteHopLink>>;
 
 struct TransmissionGraph {
   GlobalObjective objective_type;
 
-  explicit TransmissionGraph(const StreamStorage *stream_storage,
-                             GlobalObjective objective_type = MAKESPAN) noexcept;
-
-  template <typename T>
-  static auto build_from_heuristic(const StreamStorage *stream_storage,
-                                   GlobalObjective objective_type = MAKESPAN) noexcept {
-    T heuristic(stream_storage);
-    stream_storage->specify_frame_order(heuristic.generate());
-    return TransmissionGraph(stream_storage, objective_type);
-  }
+  TransmissionGraph() = default;
+  explicit TransmissionGraph(
+      const StreamStorage *stream_storage, GlobalObjective objective_type = MAKESPAN,
+      const InitialTransmissionOrder &initial = {},
+      const std::function<bool(const Stream &)> &stream_filter = default_stream_filter) noexcept;
+  explicit TransmissionGraph(
+      const StreamStorage *stream_storage, std::vector<TransmissionOperation> &&initial,
+      GlobalObjective objective_type = MAKESPAN,
+      const std::function<bool(const Stream &)> &stream_filter = default_stream_filter) noexcept;
 
   TransmissionGraph(const TransmissionGraph &other) noexcept;
   TransmissionGraph(TransmissionGraph &&other) noexcept;
@@ -49,6 +48,8 @@ struct TransmissionGraph {
 
   void merge(MergeInstruction inst) noexcept;
 
+  void fix_stream_consistency(StreamId id) noexcept;
+
   auto operator[](const Link &link) const noexcept -> const LinkTransmissions & {
     return processing_order_[link];
   }
@@ -56,6 +57,10 @@ struct TransmissionGraph {
       -> std::pair<const TransmissionOperation *, LinkOpPosition> {
     auto [_, pos] = position_[id];
     return {&processing_order_[id], pos};
+  }
+
+  [[nodiscard]] auto number_of_transmissions(const Link &link) const noexcept -> LinkOpPosition {
+    return processing_order_.number_of_transmissions(link);
   }
   [[nodiscard]] auto size() const noexcept -> GlobalOpIndex {
     return processing_order_.total_operations;
@@ -76,8 +81,11 @@ private:
   OperationPosition position_;
   FlipLog flip_log_;
 
+  std::function<bool(const Stream &)> stream_filter_;
+
   void rebuild();
-  void add_frame(const Stream &stream, FrameIndex f);
+  void add_frame(Frame frame) noexcept;
+  void add_operation(Frame frame, RouteHopLink port) noexcept;
   void connect_precedence_constraints(const Stream &stream);
   void recompute_positions(Link link);
 
@@ -111,8 +119,13 @@ private:
   [[nodiscard]] static auto related_neighbor_pairs(
       const std::vector<TransmissionOperation *> &first,
       const std::vector<TransmissionOperation *> &second) noexcept -> Generator<OperationPair>;
+
+  template <TraversalDirection D>
+  [[nodiscard]] auto
+  traverse_stream_operations(StreamId id) const noexcept -> Generator<TransmissionOperation &>;
+  template <TraversalDirection D>
+  [[nodiscard]] auto traverse_stream_operations(TransmissionOperation *op) const noexcept
+      -> Generator<TransmissionOperation &>;
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_TRANSMISSION_GRAPH_H

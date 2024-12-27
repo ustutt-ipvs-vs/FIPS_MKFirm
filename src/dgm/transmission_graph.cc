@@ -12,32 +12,63 @@
 #include <cstddef>
 #include <deque>
 #include <format>
+#include <functional>
 #include <iterator>
 #include <map>
 #include <numeric>
 #include <optional>
 #include <ostream>
 #include <ranges>
-#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace tsndgm {
 
-TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage,
-                                     GlobalObjective objective_type) noexcept
-    : objective_type(objective_type), stream_storage_(stream_storage) {
-  processing_order_.operations.reserve(stream_storage->number_of_transmissions());
-  for (auto [stream_ptr, f] : stream_storage->sorted_frames()) {
-    add_frame(*stream_ptr, f);
+TransmissionGraph::TransmissionGraph(
+    const StreamStorage *stream_storage, GlobalObjective objective_type,
+    const InitialTransmissionOrder &initial,
+    const std::function<bool(const Stream &)> &stream_filter) noexcept
+    : objective_type(objective_type), stream_storage_(stream_storage),
+      stream_filter_(stream_filter) {
+  processing_order_.operations.reserve(stream_storage->number_of_transmissions(stream_filter_));
+
+  if (initial.empty()) {
+    for (auto frame : stream_storage->frames(stream_filter_)) {
+      add_frame(frame);
+    }
+  } else {
+    for (auto [frame, port] : initial) {
+      add_operation(frame, port);
+    }
   }
 
   for (auto &op : processing_order_.operations | std::views::drop(2)) {
     auto link = op.link();
     processing_order_[link].push_back(&op);
   }
-  for (const auto &stream : *stream_storage_) {
+  for (const auto &stream : stream_storage_->filtered_streams(stream_filter_)) {
+    connect_precedence_constraints(stream);
+  }
+  rebuild();
+}
+
+TransmissionGraph::TransmissionGraph(
+    const StreamStorage *stream_storage, std::vector<TransmissionOperation> &&initial,
+    GlobalObjective objective_type,
+    const std::function<bool(const Stream &)> &stream_filter) noexcept
+    : objective_type(objective_type), stream_storage_(stream_storage),
+      stream_filter_(stream_filter) {
+  std::swap(processing_order_.operations, initial);
+  processing_order_.total_operations = processing_order_.operations.size();
+
+  for (auto &op : processing_order_.operations | std::views::drop(2)) {
+    op.route_pred.clear();
+    op.route_succ.clear();
+    auto link = op.link();
+    processing_order_[link].push_back(&op);
+  }
+  for (const auto &stream : stream_storage_->filtered_streams(stream_filter_)) {
     connect_precedence_constraints(stream);
   }
   rebuild();
@@ -45,13 +76,15 @@ TransmissionGraph::TransmissionGraph(const StreamStorage *stream_storage,
 
 TransmissionGraph::TransmissionGraph(const TransmissionGraph &other) noexcept
     : objective_type(other.objective_type), processing_order_(other.processing_order_),
-      stream_storage_(other.stream_storage_), flip_log_(other.flip_log_) {
+      stream_storage_(other.stream_storage_), flip_log_(other.flip_log_),
+      stream_filter_(other.stream_filter_) {
   rebuild();
 }
 
 TransmissionGraph::TransmissionGraph(TransmissionGraph &&other) noexcept
     : objective_type(other.objective_type), processing_order_(std::move(other.processing_order_)),
-      stream_storage_(other.stream_storage_), flip_log_(std::move(other.flip_log_)) {
+      stream_storage_(other.stream_storage_), flip_log_(std::move(other.flip_log_)),
+      stream_filter_(std::move(other.stream_filter_)) {
   rebuild();
 }
 
@@ -64,6 +97,7 @@ auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept -> Tr
   processing_order_ = other.processing_order_;
   stream_storage_ = other.stream_storage_;
   flip_log_ = other.flip_log_;
+  stream_filter_ = other.stream_filter_;
   rebuild();
   return *this;
 }
@@ -77,6 +111,7 @@ auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept -> Transmi
   std::swap(processing_order_, other.processing_order_);
   stream_storage_ = other.stream_storage_;
   std::swap(flip_log_, other.flip_log_);
+  std::swap(stream_filter_, other.stream_filter_);
   rebuild();
   return *this;
 }
@@ -165,39 +200,58 @@ void TransmissionGraph::merge(MergeInstruction inst) noexcept {
   }
 }
 
+void TransmissionGraph::fix_stream_consistency(StreamId id) noexcept {
+  for (auto &op1 : traverse_stream_operations<FORWARD>(id)) {
+    std::optional<FlipInstruction> req_flip;
+    auto [transmissions, pos1] = position_[op1.id];
+    for (LinkOpPosition pos2 = pos1 + 1; pos2 < transmissions->size(); pos2++) {
+      auto &op2 = *(*transmissions)[pos2];
+      for (auto pair : related_neighbor_pairs(op1.route_pred, op2.route_pred)) {
+        if (position_[pair.first].second > position_[pair.second].second) {
+          req_flip = {.link = op1.link(), .op_id = op1.id, .new_pos = pos2};
+        }
+      }
+    }
+    if (req_flip.has_value()) {
+      consistent_flip(*req_flip);
+    }
+  }
+}
+
 void TransmissionGraph::rebuild() {
   position_.resize(processing_order_.total_operations);
   for (auto link : std::views::keys(processing_order_.map)) {
     recompute_positions(link);
   }
-
   dfs_ = DFSTraversal(&processing_order_, &position_);
   critical_path_ = CriticalPath(&dfs_, processing_order_);
 }
 
-void TransmissionGraph::add_frame(const Stream &stream, FrameIndex f) {
-  if (stream_storage_->hyper_cycle % stream.period != 0) {
-    throw std::invalid_argument("Later added streams must fit within the same hypercycle");
+void TransmissionGraph::add_frame(Frame frame) noexcept {
+  for (auto port : frame.stream->route.traverse_hops()) {
+    add_operation(frame, port);
+  }
+}
+
+void TransmissionGraph::add_operation(Frame frame, RouteHopLink port) noexcept {
+  auto [stream, f] = frame;
+  auto [source, target] = port;
+  Link const link(source->device->id, target->device->id);
+
+  const PDB &pdb = stream->pdb_map.at(link);
+
+  TransmissionWeights weights = TransmissionWeights::from_pdb(pdb);
+  if (source->is_talker()) {
+    weights.job.incoming = f * stream->period + stream->phase;
   }
 
-  // 1. Add all transmission operations without precedence constraints
-  for (auto [source, target] : stream.route.traverse_hops()) {
-    Link const link(source->device->id, target->device->id);
-    const PDB &pdb = stream.pdb_map.at(link);
-
-    TransmissionWeights weights = TransmissionWeights::from_pdb(pdb);
-    if (source->is_talker()) {
-      weights.job.incoming = f * stream.period + stream.phase;
-    }
-
-    GlobalOpIndex const id = processing_order_.total_operations++;
-    processing_order_.operations.push_back({.id = id,
-                                            .source = source->device,
-                                            .target = target->device,
-                                            .frames = {Frame(&stream, f)},
-                                            .pcp = stream.pcp,
-                                            .weights = weights});
-  }
+  GlobalOpIndex const id = processing_order_.total_operations++;
+  processing_order_.operations.push_back({.id = id,
+                                          .source = source->device,
+                                          .target = target->device,
+                                          .frames = {frame},
+                                          .pcp = stream->pcp,
+                                          .weights = weights});
 }
 
 void TransmissionGraph::connect_precedence_constraints(const Stream &stream) {
@@ -282,7 +336,7 @@ void TransmissionGraph::consistent_flip(
     log_flip(op_id, std::get<1>(position_[op_id]));
     req_flips.erase(key);
 
-    for (LinkOpPosition cur_pos = std::get<1>(position_[op_id]); cur_pos > new_pos;
+    for (LinkOpPosition cur_pos = std::get<1>(position_[op_id]); cur_pos != new_pos;
          cur_pos = next(cur_pos)) {
       // swap positions
       auto &op = *processing_order_[link][cur_pos];
@@ -376,12 +430,10 @@ auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *
 
     LinkOpPosition cur_pos = position_[pair.first].second;
     LinkOpPosition req_pos = position_[pair.second].second;
-    if (req_pos < cur_pos) {
-      if (flip_required(req_pos, cur_pos)) {
-        FlipInstruction inst = {
-            .link = {op1.source->id, op1.target->id}, .op_id = op1.id, .new_pos = req_pos};
-        co_yield inst;
-      }
+    if (flip_required(req_pos, cur_pos)) {
+      FlipInstruction inst = {
+          .link = {op1.source->id, op1.target->id}, .op_id = op1.id, .new_pos = req_pos};
+      co_yield inst;
     }
   }
 }
@@ -439,6 +491,49 @@ auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *
   }
 }
 
+template <TraversalDirection D>
+auto TransmissionGraph::traverse_stream_operations(StreamId id) const noexcept
+    -> Generator<TransmissionOperation &> {
+  const auto &stream = stream_storage_->streams[id];
+
+  if constexpr (D == FORWARD) {
+    for (auto *op : processing_order_.src().route_succ) {
+      auto it =
+          std::ranges::find_if(op->frames, [&stream](auto &f) { return f.stream == &stream; });
+      if (it != op->frames.end()) {
+        co_yield traverse_stream_operations<D>(op);
+      }
+    }
+  } else {
+    for (auto *op : processing_order_.sink().route_pred) {
+      auto it =
+          std::ranges::find_if(op->frames, [&stream](auto &f) { return f.stream == &stream; });
+      if (it != op->frames.end()) {
+        co_yield traverse_stream_operations<D>(op);
+      }
+    }
+  }
+}
+
+template <TraversalDirection D>
+auto TransmissionGraph::traverse_stream_operations(TransmissionOperation *op) const noexcept
+    -> Generator<TransmissionOperation &> {
+  if (op->id == SINK_ID) {
+    co_return;
+  }
+
+  co_yield *op;
+  if constexpr (D == FORWARD) {
+    for (auto *op_succ : op->route_succ) {
+      co_yield traverse_stream_operations<D>(op_succ);
+    }
+  } else {
+    for (auto *op_pred : op->route_pred) {
+      co_yield traverse_stream_operations<D>(op_pred);
+    }
+  }
+}
+
 auto TransmissionGraph::check_consistency() const noexcept -> bool {
   for (auto link : std::views::keys(processing_order_.map)) {
     const auto &transmissions = processing_order_.map.at(link);
@@ -488,5 +583,13 @@ void TransmissionGraph::print_critical_path(std::ostream &out) const {
 
 template Generator<DFSVisitor> TransmissionGraph::traverse<FORWARD>();
 template Generator<DFSVisitor> TransmissionGraph::traverse<BACKWARD>();
+template Generator<TransmissionOperation &>
+    TransmissionGraph::traverse_stream_operations<FORWARD>(StreamId) const noexcept;
+template Generator<TransmissionOperation &>
+    TransmissionGraph::traverse_stream_operations<BACKWARD>(StreamId) const noexcept;
+template Generator<TransmissionOperation &>
+TransmissionGraph::traverse_stream_operations<FORWARD>(TransmissionOperation *) const noexcept;
+template Generator<TransmissionOperation &>
+TransmissionGraph::traverse_stream_operations<BACKWARD>(TransmissionOperation *) const noexcept;
 
 } // namespace tsndgm

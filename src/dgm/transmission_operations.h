@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_TRANSMISSION_OPERATIONS_H
-#define TSN_DGM_TRANSMISSION_OPERATIONS_H
+#pragma once
 
 #include "network/histogram.h"
 #include "network/stream.h"
@@ -48,6 +47,7 @@ struct TransmissionOperation {
   std::vector<TransmissionOperation *> route_succ;
 
   [[nodiscard]] auto link() const { return Link(source->id, target->id); }
+  [[nodiscard]] auto valid() const { return !frames.empty(); }
 };
 
 using LinkTransmissions = std::vector<TransmissionOperation *>;
@@ -74,6 +74,8 @@ struct ProcessingOrder {
   [[nodiscard]] auto operator[](GlobalOpIndex id) noexcept -> TransmissionOperation &;
   [[nodiscard]] auto operator[](GlobalOpIndex id) const noexcept -> const TransmissionOperation &;
 
+  [[nodiscard]] auto number_of_transmissions(const Link &link) const noexcept -> LinkOpPosition;
+
   [[nodiscard]] auto src() noexcept -> TransmissionOperation &;
   [[nodiscard]] auto src() const noexcept -> const TransmissionOperation &;
   [[nodiscard]] auto sink() noexcept -> TransmissionOperation &;
@@ -84,5 +86,3 @@ private:
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_TRANSMISSION_OPERATIONS_H

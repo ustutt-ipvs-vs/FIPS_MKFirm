@@ -254,7 +254,13 @@ void DFSVisitor::print() {
   case DFSVisitor::FINISH_VERTEX: {
     Vertex *v = std::get<Vertex *>(visited_element);
     s = s.empty() ? "finish" : s;
-    std::println("{}: {}", s, v->id);
+    if (v->id > SINK_ID) {
+      auto f = *v->frames.begin();
+      std::println("{}: {} ([{},{}], {}#{})", s, v->id, v->source->id, v->target->id,
+                   f.stream->name, f.id);
+    } else {
+      std::println("{}: {}", s, v->id);
+    }
     break;
   }
   case DFSVisitor::EXAMINE_EDGE:
