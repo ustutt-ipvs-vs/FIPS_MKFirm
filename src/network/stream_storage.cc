@@ -3,10 +3,12 @@
 #include "stream.h"
 #include "topology.h"
 #include "utils/generator.h"
+#include <algorithm>
 #include <bits/ranges_algo.h>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -33,8 +35,33 @@ StreamStorage::StreamStorage(nlohmann::json &&json, const NetworkTopology &netwo
 StreamStorage::StreamStorage(const std::filesystem::path &in, const NetworkTopology &network)
     : StreamStorage(nlohmann::json::parse(std::ifstream(in)), network) {}
 
-auto StreamStorage::frames() const -> Generator<Frame> {
+auto StreamStorage::filtered_streams(const std::function<bool(const Stream &)> &stream_filter) const
+    -> Generator<const Stream &> {
   for (const auto &stream : streams) {
+    if (stream_filter(stream)) {
+      co_yield stream;
+    }
+  }
+}
+
+auto StreamStorage::filtered_streams_with_id(
+    const std::function<bool(const Stream &)> &stream_filter) const
+    -> Generator<std::pair<StreamId, const Stream *>> {
+  StreamId s_id = 0;
+  for (auto const &stream : streams) {
+    if (stream_filter(stream)) {
+      co_yield std::make_pair(s_id, &stream);
+    }
+    s_id++;
+  }
+}
+
+auto StreamStorage::frames(const std::function<bool(const Stream &)> &stream_filter) const
+    -> Generator<Frame> {
+  for (const auto &stream : streams) {
+    if (!stream_filter(stream)) {
+      continue;
+    }
     for (FrameIndex const f : stream.frames(hyper_cycle)) {
       auto frame = Frame(&stream, f);
       co_yield frame;
@@ -42,35 +69,32 @@ auto StreamStorage::frames() const -> Generator<Frame> {
   }
 }
 
-auto StreamStorage::sorted_frames() const -> Generator<Frame> {
-  if (sorted_frames_.empty()) {
-    co_yield frames();
-  } else {
-    for (Frame frame : sorted_frames_) {
-      co_yield frame;
+auto StreamStorage::number_of_frames(const std::function<bool(const Stream &)> &stream_filter) const
+    -> size_t {
+  size_t c = 0;
+  for (const auto &stream : streams) {
+    if (stream_filter(stream)) {
+      c += hyper_cycle / stream.period;
     }
   }
+  return c;
 }
 
-void StreamStorage::specify_frame_order(std::vector<Frame> &&sorted_frames) const {
-  sorted_frames_ = std::move(sorted_frames);
-}
-
-auto StreamStorage::number_of_frames() const -> size_t {
+auto StreamStorage::number_of_transmissions(
+    const std::function<bool(const Stream &)> &stream_filter) const -> size_t {
   size_t c = 0;
   for (const auto &stream : streams) {
-    c += hyper_cycle / stream.period;
+    if (stream_filter(stream)) {
+      size_t const stream_links = stream.route.number_of_links();
+      c += stream_links * (hyper_cycle / stream.period);
+    }
   }
   return c;
 }
 
-auto StreamStorage::number_of_transmissions() const -> size_t {
-  size_t c = 0;
-  for (const auto &stream : streams) {
-    size_t const stream_links = stream.route.number_of_links();
-    c += stream_links * (hyper_cycle / stream.period);
-  }
-  return c;
+auto StreamStorage::get_stream_id(const Stream *ptr) const noexcept -> StreamId {
+  return std::ranges::find_if(streams, [ptr](auto &stream) { return &stream == ptr; }) -
+         streams.begin();
 }
 
 } // namespace tsndgm

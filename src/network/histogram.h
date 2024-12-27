@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_HISTOGRAM_H
-#define TSN_DGM_HISTOGRAM_H
+#pragma once
 
 #include "topology.h"
 #include <filesystem>
@@ -79,5 +78,3 @@ struct PacketDelayBudget {
 using PDB = PacketDelayBudget;
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_HISTOGRAM_H

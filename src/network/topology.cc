@@ -102,6 +102,12 @@ auto NetworkTopology::at(Link link) const -> const DataLinkProperty & {
   return *link_ptr;
 }
 
+auto NetworkTopology::devices() const -> Generator<const DeviceProperty *> {
+  for (const auto &device : devices_) {
+    co_yield &device;
+  }
+}
+
 void NetworkTopology::add_device(const DeviceProperty &device) {
   if (get_device(device.id) != nullptr) {
     throw std::invalid_argument(std::format("DeviceID is not unique: {}", device.id));
@@ -354,7 +360,7 @@ auto Route::traverse_consecutive_links() const -> Generator<std::pair<Link, Link
   }
 }
 
-auto Route::traverse_hops() const -> Generator<std::pair<const RouteHop *, const RouteHop *>> {
+auto Route::traverse_hops() const -> Generator<RouteHopLink> {
   for (const auto &[device_id, hop] : hops_) {
     for (auto *child_ptr : hop.childs) {
       std::pair<const RouteHop *, const RouteHop *> hop_pair = {&hop, child_ptr};
@@ -363,12 +369,28 @@ auto Route::traverse_hops() const -> Generator<std::pair<const RouteHop *, const
   }
 }
 
-[[nodiscard]] auto Route::number_of_links() const -> size_t {
+auto Route::traverse_wireless_hops() const -> Generator<RouteHopLink> {
+  for (auto &hop : traverse_hops()) {
+    const DeviceProperty &source = *hop.first->device;
+    if (source[hop.second->device->id].type == WIRELESS) {
+      co_yield hop;
+    }
+  }
+}
+
+auto Route::number_of_links() const -> size_t {
   size_t links = 0;
   for (auto _ : traverse_links()) {
     links++;
   }
   return links;
+}
+
+auto Route::has_wireless_links() const -> bool {
+  for (auto _ : traverse_wireless_hops()) {
+    return true;
+  }
+  return false;
 }
 
 } // namespace tsndgm

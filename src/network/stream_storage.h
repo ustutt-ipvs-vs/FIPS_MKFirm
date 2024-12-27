@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_STREAM_STORAGE_H
-#define TSN_DGM_STREAM_STORAGE_H
+#pragma once
 
 #include "histogram.h"
 #include "stream.h"
@@ -9,9 +8,19 @@ namespace tsndgm {
 
 using StreamId = size_t;
 
+[[maybe_unused]] constexpr auto default_stream_filter = [](const Stream & /*stream*/) {
+  return true;
+};
+[[maybe_unused]] constexpr auto wireless_stream_filter = [](const Stream &stream) {
+  return stream.route.has_wireless_links();
+};
+[[maybe_unused]] constexpr auto wired_stream_filter = [](const Stream &stream) {
+  return !stream.route.has_wireless_links();
+};
+
 struct StreamStorage {
-  std::vector<Stream> streams;
   Delay hyper_cycle;
+  std::vector<Stream> streams;
 
   StreamStorage() = default;
   StreamStorage(const std::vector<Stream> &streams);
@@ -23,22 +32,21 @@ struct StreamStorage {
   StreamStorage(StreamStorage &&other) = default;
   auto operator=(StreamStorage &&) -> StreamStorage & = default;
 
-  void specify_frame_order(std::vector<Frame> &&sorted_frames) const;
+  [[nodiscard]] auto filtered_streams(
+      const std::function<bool(const Stream &)> &stream_filter) const -> Generator<const Stream &>;
+  [[nodiscard]] auto
+  filtered_streams_with_id(const std::function<bool(const Stream &)> &stream_filter) const
+      -> Generator<std::pair<StreamId, const Stream *>>;
+  [[nodiscard]] auto frames(const std::function<bool(const Stream &)> &stream_filter =
+                                default_stream_filter) const -> Generator<Frame>;
 
-  using Iterator = decltype(streams)::const_iterator;
-  [[nodiscard]] auto begin() const -> Iterator { return streams.begin(); }
-  [[nodiscard]] auto end() const -> Iterator { return streams.end(); }
+  [[nodiscard]] auto number_of_frames(const std::function<bool(const Stream &)> &stream_filter =
+                                          default_stream_filter) const -> size_t;
+  [[nodiscard]] auto
+  number_of_transmissions(const std::function<bool(const Stream &)> &stream_filter =
+                              default_stream_filter) const -> size_t;
 
-  [[nodiscard]] auto frames() const -> Generator<Frame>;
-  [[nodiscard]] auto sorted_frames() const -> Generator<Frame>;
-
-  [[nodiscard]] auto number_of_frames() const -> size_t;
-  [[nodiscard]] auto number_of_transmissions() const -> size_t;
-
-private:
-  mutable std::vector<Frame> sorted_frames_;
+  [[nodiscard]] auto get_stream_id(const Stream *ptr) const noexcept -> StreamId;
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_STREAM_STORAGE_H

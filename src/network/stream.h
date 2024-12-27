@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_STREAM_H
-#define TSN_DGM_STREAM_H
+#pragma once
 
 #include "histogram.h"
 #include "topology.h"
@@ -52,5 +51,3 @@ struct Frame {
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_STREAM_H

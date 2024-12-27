@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_TOPOLOGY_H
-#define TSN_DGM_TOPOLOGY_H
+#pragma once
 
 #include "utils/generator.h"
 #include "utils/interval.h"
@@ -83,6 +82,8 @@ struct NetworkTopology {
   auto operator[](Link link) const -> const DataLinkProperty &;
   [[nodiscard]] auto at(Link link) const -> const DataLinkProperty &;
 
+  [[nodiscard]] auto devices() const -> Generator<const DeviceProperty *>;
+
   [[nodiscard]] auto dump_to_json() const -> nlohmann::json;
   void dump_to_file(const std::filesystem::path &out) const;
 
@@ -136,6 +137,8 @@ private:
   }
 };
 
+using RouteHopLink = std::pair<const RouteHop *, const RouteHop *>;
+
 struct Route {
 private:
   std::map<DeviceId, RouteHop> hops_;
@@ -179,12 +182,11 @@ public:
   [[nodiscard]] auto traverse_talker_links() const -> Generator<Link>;
   [[nodiscard]] auto traverse_listener_links() const -> Generator<Link>;
   [[nodiscard]] auto traverse_consecutive_links() const -> Generator<std::pair<Link, Link>>;
-  [[nodiscard]] auto
-  traverse_hops() const -> Generator<std::pair<const RouteHop *, const RouteHop *>>;
+  [[nodiscard]] auto traverse_hops() const -> Generator<RouteHopLink>;
+  [[nodiscard]] auto traverse_wireless_hops() const -> Generator<RouteHopLink>;
 
   [[nodiscard]] auto number_of_links() const -> size_t;
+  [[nodiscard]] auto has_wireless_links() const -> bool;
 };
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_TOPOLOGY_H
