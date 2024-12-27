@@ -3,8 +3,7 @@
  * @author Simon König
  */
 
-#ifndef TSN_DGM_GENERATOR_H
-#define TSN_DGM_GENERATOR_H
+#pragma once
 
 #include <cassert>
 #include <coroutine>
@@ -311,5 +310,3 @@ static auto generate(InputIterator begin, InputIterator end) noexcept -> gen<T> 
 template <typename T> using Generator = Gen<T>;
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_GENERATOR_H

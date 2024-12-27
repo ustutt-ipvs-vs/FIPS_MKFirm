@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_INTERVAL_H
-#define TSN_DGM_INTERVAL_H
+#pragma once
 
 #include "nlohmann/json.hpp"
 
@@ -50,5 +49,3 @@ template <typename T> auto json_get_or_default(nlohmann::json j, T default_value
 }
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_INTERVAL_H

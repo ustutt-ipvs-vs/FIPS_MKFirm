@@ -1,5 +1,4 @@
-#ifndef TSN_DGM_TOPOLOGICAL_SORT
-#define TSN_DGM_TOPOLOGICAL_SORT
+#pragma once
 
 #include "generator.h"
 #include <cstdint>
@@ -24,6 +23,7 @@ auto topological_sort(std::vector<T> &collection, PartialOrder &partial_order,
     }
     break;
   case GRAY:
+    assert(false);
   case BLACK:
     co_return;
   }
@@ -49,5 +49,3 @@ auto topological_sort(std::vector<T> &collection, PartialOrder &partial_order) -
 }
 
 } // namespace tsndgm
-
-#endif // TSN_DGM_TOPOLOGICAL_SORT
