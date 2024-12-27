@@ -1,5 +1,5 @@
 #include "dgm/transmission_graph.h"
-#include "heuristic/initial/frame_ordering.h"
+#include "heuristic/initial/transmission_ordering.h"
 #include <functional>
 #include <gtest/gtest.h>
 #include <print>
@@ -86,15 +86,6 @@ protected:
 TEST_F(TransmissionGraphTest, Build) { auto g = TransmissionGraph(&streams); }
 
 TEST_F(TransmissionGraphTest, CriticalPath) {
-  auto g = TransmissionGraph(&streams);
-  g.critical_path();
-  g.print_critical_path();
-}
-
-TEST_F(TransmissionGraphTest, EffectiveRelease) {
-  EffectiveRelease initial(&streams);
-  streams.specify_frame_order(initial.generate());
-
   auto g = TransmissionGraph(&streams);
   g.critical_path();
   g.print_critical_path();

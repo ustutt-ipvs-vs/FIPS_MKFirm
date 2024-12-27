@@ -1,5 +1,5 @@
 #include "dgm/transmission_graph.h"
-#include "heuristic/initial/frame_ordering.h"
+#include "heuristic/initial/initial.h"
 #include "network/stream_storage.h"
 #include "network/topology.h"
 #include <argparse/argparse.hpp>
@@ -24,9 +24,15 @@ int main(int argc, char **argv) {
   auto stream_file = std::filesystem::path(program.get<std::string>("-s"));
   auto streams = StreamStorage(stream_file, network);
 
-  auto g = TransmissionGraph::build_from_heuristic<EffectiveRelease>(&streams);
-  g.critical_path();
-  // g.print_critical_path();
+  MergingInitialHeuristic heuristic(&streams, &network);
+  auto g = heuristic.generate(PER_FRAME);
+  auto crit_path = g.critical_path();
+  if (crit_path != nullptr) {
+    std::println("MergingInitialHeuristic Result: {} {}", crit_path->get_last().objective,
+                 g.size());
+  } else {
+    std::println("MergingInitialHeuristic Result: -");
+  }
 
   return 0;
 }
