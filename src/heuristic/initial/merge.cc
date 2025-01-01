@@ -3,7 +3,6 @@
 #include "dgm/transmission_graph.h"
 #include "dgm/transmission_operations.h"
 #include "network/stream.h"
-#include "network/stream_storage.h"
 #include "network/topology.h"
 #include <cassert>
 #include <functional>
@@ -13,13 +12,6 @@
 #include <vector>
 
 namespace tsndgm {
-
-TransmissionGraphMerger::TransmissionGraphMerger(
-    const StreamStorage *stream_storage, TransmissionGraph &&first, TransmissionGraph &&second,
-    const std::function<bool(const Stream &)> &merged_stream_filter,
-    const std::function<Delay(TransmissionGraph &, GlobalOpIndex)> &eval) noexcept
-    : first(std::move(first)), second(std::move(second)), stream_storage_(stream_storage),
-      merged_stream_filter_(merged_stream_filter), eval_(eval) {}
 
 auto TransmissionGraphMerger::generate(GlobalObjective objective_type) noexcept
     -> TransmissionGraph {

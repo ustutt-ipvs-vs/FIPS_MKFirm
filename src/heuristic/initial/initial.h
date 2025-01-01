@@ -7,17 +7,29 @@
 
 namespace tsndgm {
 
-struct MergingInitialHeuristic {
-  MergingInitialHeuristic(const StreamStorage *stream_storage,
-                          const NetworkTopology *network) noexcept;
+[[maybe_unused]] constexpr auto release_time_eval = [](TransmissionGraph &g, GlobalOpIndex id) {
+  return (*g.critical_path())[id].cost;
+};
 
-  [[nodiscard]] auto generate(GlobalObjective objective_type) noexcept -> TransmissionGraph;
+struct IncrementalHeuristic {
+  TransmissionGraph g;
+
+  IncrementalHeuristic(const StreamStorage *stream_storage,
+                       const NetworkTopology *network) noexcept;
+
+  [[nodiscard]] auto
+  add_stream(StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
+                              release_time_eval) noexcept -> bool;
 
 private:
   const StreamStorage *stream_storage_;
+  const NetworkTopology *network_;
+  PrecedenceGraphs graphs_;
+  NecessaryQueueingMerge aggregation_;
 
-  NecessaryQueueingMerge wireless_heuristic_;
-  IterativeEffectiveRelease wired_heuristic_;
+  std::vector<const Stream *> feasible_streams_;
+
+  [[nodiscard]] static auto check_feasibility(TransmissionGraph &g_new) noexcept -> bool;
 };
 
 } // namespace tsndgm

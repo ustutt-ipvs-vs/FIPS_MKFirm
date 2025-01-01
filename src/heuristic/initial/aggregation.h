@@ -9,7 +9,7 @@ namespace tsndgm {
 
 struct NecessaryQueueingMerge {
   struct CriticalOperationInfo {
-    GlobalOpIndex op;
+    GlobalOpIndex op{SOURCE_ID};
     Delay effective_release;
     Delay effective_deadline;
     Delay dejittering;
@@ -22,21 +22,17 @@ struct NecessaryQueueingMerge {
     raise_ceiling(const CriticalOperationInfo &other) const noexcept -> CriticalOperationInfo;
   };
 
-  PrecedenceGraphs graphs;
+  NecessaryQueueingMerge(const StreamStorage *stream_storage, const NetworkTopology *network,
+                         GlobalObjective objective_type) noexcept;
 
-  NecessaryQueueingMerge(
-      const StreamStorage *stream_storage, const NetworkTopology *network,
-      const std::function<bool(const Stream &)> &stream_filter = default_stream_filter) noexcept;
-
-  [[nodiscard]] auto generate(GlobalObjective objective_type) noexcept -> TransmissionGraph;
+  [[nodiscard]] auto compress_stream(TransmissionGraph &&g,
+                                     StreamId id) noexcept -> TransmissionGraph;
 
 private:
   const StreamStorage *stream_storage_;
   const NetworkTopology *network_;
-  std::function<bool(const Stream &)> stream_filter_;
-  TransmissionGraph g_;
+  GlobalObjective objective_type_;
 
-  [[nodiscard]] auto bottleneck_links() const noexcept -> Generator<Link>;
   [[nodiscard]] auto wireless_packet_delay_budget(const TransmissionOperation &op) const noexcept
       -> std::optional<PacketDelayBudget>;
 };
