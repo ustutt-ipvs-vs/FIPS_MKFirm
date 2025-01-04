@@ -1,6 +1,5 @@
 #pragma once
 
-#include "histogram.h"
 #include "stream.h"
 #include "topology.h"
 
