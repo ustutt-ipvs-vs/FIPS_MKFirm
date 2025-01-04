@@ -42,4 +42,22 @@ private:
                           release_time_eval) noexcept -> TransmissionGraph;
 };
 
+struct StrictTemporalIsolationHeuristic {
+  TransmissionGraph g;
+
+  StrictTemporalIsolationHeuristic(const StreamStorage *stream_storage,
+                                   const NetworkTopology *network) noexcept;
+
+  [[nodiscard]] auto
+  add_stream(StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
+                              release_time_eval) noexcept -> bool;
+
+private:
+  const StreamStorage *stream_storage_;
+  const NetworkTopology *network_;
+  PrecedenceGraphs graphs_;
+
+  std::vector<const Stream *> feasible_streams_;
+};
+
 } // namespace tsndgm

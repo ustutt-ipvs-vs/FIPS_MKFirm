@@ -32,6 +32,7 @@ auto IncrementalHeuristic::add_stream(
     feasible_streams_.push_back(&stream);
     return true;
   }
+  g_new.print_critical_path();
   return false;
 }
 
@@ -91,6 +92,31 @@ auto IncrementalHeuristic::add_wireless_stream(
     g_wireless_ = std::move(g_wireless_new);
   }
   return g_new;
+}
+
+StrictTemporalIsolationHeuristic::StrictTemporalIsolationHeuristic(
+    const StreamStorage *stream_storage, const NetworkTopology *network) noexcept
+    : stream_storage_(stream_storage), network_(network), graphs_(stream_storage) {}
+
+auto StrictTemporalIsolationHeuristic::add_stream(
+    StreamId id,
+    const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval) noexcept -> bool {
+  const auto &stream = stream_storage_->streams[id];
+  graphs_.add_stream(id);
+
+  auto stream_filter = [&](const Stream &s) {
+    return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
+  };
+  TransmissionGraph g_new =
+      TransmissionGraphMerger(stream_storage_, g, graphs_.stream_graphs[id], stream_filter, eval)
+          .generate(PER_FRAME);
+
+  if (g_new.is_feasible()) {
+    g = std::move(g_new);
+    feasible_streams_.push_back(&stream);
+    return true;
+  }
+  return false;
 }
 
 } // namespace tsndgm

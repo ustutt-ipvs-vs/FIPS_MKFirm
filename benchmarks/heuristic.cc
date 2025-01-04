@@ -19,6 +19,10 @@ int main(int argc, char **argv) {
       .default_value(std::string("../data/streams.json"))
       .required()
       .help("specify the time-triggered streams");
+  program.add_argument("-sti", "--strict_temporal_isolation")
+      .default_value(false)
+      .implicit_value(true)
+      .help("use strict temporal isolation constraints (i.e., no batching)");
   program.parse_args(argc, argv);
 
   auto network_file = std::filesystem::path(program.get<std::string>("-n"));
@@ -27,16 +31,25 @@ int main(int argc, char **argv) {
   auto stream_storage = StreamStorage(stream_file, network);
 
   StreamId count = 0;
-  IncrementalHeuristic heuristic(&stream_storage, &network);
-  for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
-    auto accepted = heuristic.add_stream(id);
-    std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
-    count += accepted ? 1 : 0;
+  if (program.get<bool>("-sti")) {
+    StrictTemporalIsolationHeuristic heuristic(&stream_storage, &network);
+    for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
+      auto accepted = heuristic.add_stream(id);
+      std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
+      count += accepted ? 1 : 0;
+    }
+    heuristic.g.critical_path();
+    heuristic.g.print_critical_cost();
+  } else {
+    IncrementalHeuristic heuristic(&stream_storage, &network);
+    for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
+      auto accepted = heuristic.add_stream(id);
+      std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
+      count += accepted ? 1 : 0;
+    }
+    heuristic.g.critical_path();
+    heuristic.g.print_critical_cost();
   }
-
-  heuristic.g.critical_path();
-  heuristic.g.print_critical_cost();
-
   std::println("Scheduled {} streams", count);
 
   return 0;
