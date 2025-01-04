@@ -32,6 +32,9 @@ struct CriticalPath {
 
   auto compute(GlobalObjective objective_type) -> std::optional<Result>;
   [[nodiscard]] auto get_last() const -> Result { return last_result_; }
+
+  [[nodiscard]] auto
+  traverse_operations() const -> Generator<std::pair<const TransmissionOperation *, Delay>>;
   [[nodiscard]] auto
   print() const -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
 

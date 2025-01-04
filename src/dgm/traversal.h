@@ -156,7 +156,6 @@ struct DFSTraversal {
     }
     return COMPLETED;
   }
-
   auto size() -> size_t { return processing_order_->total_operations; };
 
 private:

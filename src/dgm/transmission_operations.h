@@ -47,6 +47,10 @@ struct TransmissionOperation {
   std::vector<TransmissionOperation *> route_succ;
 
   [[nodiscard]] auto link() const { return Link(source->id, target->id); }
+  [[nodiscard]] auto contains(const Stream *stream) const {
+    return std::ranges::find_if(frames, [stream](auto &f) { return f.stream == stream; }) !=
+           frames.end();
+  }
   [[nodiscard]] auto valid() const { return !frames.empty(); }
 };
 

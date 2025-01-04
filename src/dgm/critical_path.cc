@@ -98,6 +98,23 @@ auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Re
   std::unreachable();
 }
 
+auto CriticalPath::traverse_operations() const
+    -> Generator<std::pair<const TransmissionOperation *, Delay>> {
+  if (!valid) {
+    co_return;
+  }
+
+  auto op_id = last_result_.critical_vertex;
+  std::pair<const TransmissionOperation *, Delay> val;
+  while (op_id != SOURCE_ID) {
+    val = {&(*processing_order_)[op_id], crit_cost_[op_id].cost};
+    co_yield val;
+    op_id = crit_cost_[op_id].pred;
+  }
+  val = {&(*processing_order_)[SOURCE_ID], crit_cost_[SOURCE_ID].cost};
+  co_yield val;
+}
+
 auto CriticalPath::print(const std::vector<VertexInfo> &info, std::string indent, GlobalOpIndex id,
                          GlobalOpIndex parent, bool is_last_child) const
     -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>> {

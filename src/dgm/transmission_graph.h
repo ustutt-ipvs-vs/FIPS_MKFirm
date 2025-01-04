@@ -1,7 +1,6 @@
 #pragma once
 
 #include "critical_path.h"
-#include "network/histogram.h"
 #include "network/stream_storage.h"
 #include "network/topology.h"
 #include "transmission_operations.h"
@@ -19,6 +18,10 @@ struct FlipInstruction {
 using OperationPair = std::pair<GlobalOpIndex, GlobalOpIndex>;
 using MergeInstruction = OperationPair;
 using InitialTransmissionOrder = std::vector<std::pair<Frame, RouteHopLink>>;
+
+[[maybe_unused]] constexpr auto default_priority_filter = [](const TransmissionOperation & /*op*/) {
+  return 0;
+};
 
 struct TransmissionGraph {
   GlobalObjective objective_type;
@@ -38,17 +41,22 @@ struct TransmissionGraph {
   auto operator=(const TransmissionGraph &other) noexcept -> TransmissionGraph &;
   auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
 
+  auto is_feasible() -> bool;
   auto critical_path() -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
+  void print_critical_cost(std::ostream &out = std::cout) const;
   template <TraversalDirection D> [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;
+
+  [[nodiscard]] auto
+  equivalence_class(OperationPair pair) const noexcept -> std::deque<OperationPair>;
+  [[nodiscard]] auto
+  related_neighbor_pairs(OperationPair pair) const noexcept -> Generator<OperationPair>;
 
   void flip(const FlipInstruction &inst) noexcept;
   void flip(GlobalOpIndex op_id, LinkOpPosition new_pos) noexcept;
   void undo_last_flip() noexcept;
 
   void merge(MergeInstruction inst) noexcept;
-
-  void fix_stream_consistency(StreamId id) noexcept;
 
   auto operator[](const Link &link) const noexcept -> const LinkTransmissions & {
     return processing_order_[link];
@@ -68,6 +76,7 @@ struct TransmissionGraph {
 
   [[nodiscard]] auto check_consistency() const noexcept -> bool;
   [[nodiscard]] auto is_valid(GlobalOpIndex id) const noexcept -> bool;
+  [[nodiscard]] auto contains(const Stream *stream) const noexcept -> bool;
 
 private:
   enum FlipPolicy : std::uint8_t { MOVE_BEFORE, MOVE_AFTER };
@@ -88,6 +97,8 @@ private:
   void add_operation(Frame frame, RouteHopLink port) noexcept;
   void connect_precedence_constraints(const Stream &stream);
   void recompute_positions(Link link);
+  static void add_neighbor(std::vector<TransmissionOperation *> &neighbors,
+                           TransmissionOperation *op) noexcept;
 
   void consistent_flip(const FlipInstruction &inst) noexcept;
   template <FlipPolicy P> void consistent_flip(const FlipInstruction &inst) noexcept;
@@ -112,20 +123,9 @@ private:
                                     const std::vector<TransmissionOperation *> &second)
       const noexcept -> Generator<FlipInstruction>;
 
-  [[nodiscard]] auto
-  equivalence_class(OperationPair pair) const noexcept -> std::deque<OperationPair>;
-  [[nodiscard]] auto
-  related_neighbor_pairs(OperationPair pair) const noexcept -> Generator<OperationPair>;
   [[nodiscard]] static auto related_neighbor_pairs(
       const std::vector<TransmissionOperation *> &first,
       const std::vector<TransmissionOperation *> &second) noexcept -> Generator<OperationPair>;
-
-  template <TraversalDirection D>
-  [[nodiscard]] auto
-  traverse_stream_operations(StreamId id) const noexcept -> Generator<TransmissionOperation &>;
-  template <TraversalDirection D>
-  [[nodiscard]] auto traverse_stream_operations(TransmissionOperation *op) const noexcept
-      -> Generator<TransmissionOperation &>;
 };
 
 } // namespace tsndgm
