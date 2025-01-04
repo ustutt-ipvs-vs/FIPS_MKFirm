@@ -3,7 +3,6 @@
 #include "nlohmann/json_fwd.hpp"
 #include "topology.h"
 #include "utils/generator.h"
-#include "utils/interval.h"
 #include <algorithm>
 #include <filesystem>
 #include <limits>

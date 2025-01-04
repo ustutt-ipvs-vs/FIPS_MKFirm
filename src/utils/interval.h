@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nlohmann/json.hpp"
+#include <algorithm>
 
 namespace tsndgm {
 
@@ -43,9 +43,5 @@ template <typename T> struct Interval {
     return lhs.min == rhs.min && lhs.max == rhs.max;
   }
 };
-
-template <typename T> auto json_get_or_default(nlohmann::json j, T default_value) -> T {
-  return (j.is_null() ? default_value : j.template get<T>());
-}
 
 } // namespace tsndgm

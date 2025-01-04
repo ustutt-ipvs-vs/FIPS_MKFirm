@@ -7,10 +7,12 @@
 #include <generator>
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include <optional>
-#include <ranges>
 #include <string>
 #include <vector>
+
+template <typename T> auto json_get_or_default(nlohmann::json j, T default_value) -> T {
+  return (j.is_null() ? default_value : j.template get<T>());
+}
 
 namespace tsndgm {
 

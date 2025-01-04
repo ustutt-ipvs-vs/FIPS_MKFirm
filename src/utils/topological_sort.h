@@ -2,12 +2,12 @@
 
 #include "generator.h"
 #include <cstdint>
-#include <deque>
+#include <set>
 #include <vector>
 
 namespace tsndgm {
 
-using PartialOrder = std::vector<std::vector<size_t>>;
+using PartialOrder = std::vector<std::set<size_t>>;
 
 namespace detail {
 enum Color : std::uint8_t { WHITE, GRAY, BLACK };
