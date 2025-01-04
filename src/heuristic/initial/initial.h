@@ -22,6 +22,9 @@ struct IncrementalHeuristic {
                               release_time_eval) noexcept -> bool;
 
 private:
+  TransmissionGraph g_wired_;
+  TransmissionGraph g_wireless_;
+
   const StreamStorage *stream_storage_;
   const NetworkTopology *network_;
   PrecedenceGraphs graphs_;
@@ -29,7 +32,14 @@ private:
 
   std::vector<const Stream *> feasible_streams_;
 
-  [[nodiscard]] static auto check_feasibility(TransmissionGraph &g_new) noexcept -> bool;
+  [[nodiscard]] auto
+  add_wired_stream(StreamId id,
+                   const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
+                       release_time_eval) noexcept -> TransmissionGraph;
+  [[nodiscard]] auto
+  add_wireless_stream(StreamId id,
+                      const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
+                          release_time_eval) noexcept -> TransmissionGraph;
 };
 
 } // namespace tsndgm
