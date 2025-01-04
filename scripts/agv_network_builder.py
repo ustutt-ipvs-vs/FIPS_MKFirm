@@ -21,23 +21,25 @@ DATA_RATE = 100000000  # 100Mbps
 PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
 PROCESSING_DELAY = 0
 
-CT_PERIOD = 1000000  # 1ms
-CT_PHASE = 0
-CT_FRAMESIZE = 100  # 100 byte
-CT_E2E_LATENCY = 500000  # 500us
-CT_JITTER = 250000  # 250us
-CT_PCP = 7
+CT_TYPES = 1
+CT_PERIOD = [500000]
+CT_PHASE = [0]
+CT_FRAMESIZE = [100]
+CT_E2E_LATENCY = [500000]
+CT_JITTER = [0]
+CT_PCP = [6]
 
-WT_PERIOD = 25000000  # 25ms
-WT_PHASE = 0
-WT_FRAMESIZE = 100  # 100 byte
-WT_E2E_LATENCY = 25000000  # 20ms
-WT_JITTER = 5000000  # 5ms
-WT_PCP = 7
+WT_TYPES = 1
+WT_PERIOD = [25000000]  # 25ms, 50ms, 100ms
+WT_PHASE = [0]
+WT_FRAMESIZE = [100]  # 100 byte, 100 byte, 100 byte
+WT_E2E_LATENCY = [25000000]  # 25ms, 50ms, 100ms
+WT_JITTER = [5000000]  # 250us, 250us, 250us
+WT_PCP = [6]
 
-WT_RELIABILITY = 0.9999
-WT_FRAME_LOSS = 0
-WT_RTI_POLICY = "minimize_dmax"
+WT_RELIABILITY = [0.9999]
+WT_FRAME_LOSS = [0]
+WT_RTI_POLICY = "minimize_interval"
 STREAM_OBJECTIVE = "tardiness"
 
 OMNETPP_X = 700
@@ -155,16 +157,17 @@ def build_core(size: int, ct: int, bypass: bool):
         path = path_a + list(reversed(path_b))
         route = list(itertools.pairwise(path))
 
+        i = random.randrange(CT_TYPES)
         streams.append(
             {
                 "name": f"CORE_CT{str(s).zfill(2)}",
-                "period": CT_PERIOD,
-                "phase": CT_PHASE,
-                "pcp": CT_PCP,
+                "period": CT_PERIOD[i],
+                "phase": CT_PHASE[i],
+                "pcp": CT_PCP[i],
                 "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                "e2e_latency": CT_E2E_LATENCY,
-                "jitter": CT_JITTER,
-                "frame_size": CT_FRAMESIZE,
+                "e2e_latency": CT_E2E_LATENCY[i],
+                "jitter": CT_JITTER[i],
+                "frame_size": CT_FRAMESIZE[i],
                 "route": route,
                 "pdb_map": None,
                 "weight": 1.0,
@@ -219,7 +222,7 @@ def build_agv(
     wt_in: int,
     wt_out: int,
     ct: int,
-    rel: float,
+    rel: list[float],
     bypass: bool,
     pdc: float,
     vslot: int,
@@ -341,16 +344,17 @@ def build_agv(
         path = path_a + list(reversed(path_b))
         route = list(itertools.pairwise(path))
 
+        i = random.randrange(CT_TYPES)
         streams.append(
             {
                 "name": f"AGV{n}_CT{str(s).zfill(2)}",
-                "period": CT_PERIOD,
-                "phase": CT_PHASE,
-                "pcp": CT_PCP,
+                "period": CT_PERIOD[i],
+                "phase": CT_PHASE[i],
+                "pcp": CT_PCP[i],
                 "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                "e2e_latency": CT_E2E_LATENCY,
-                "jitter": CT_JITTER,
-                "frame_size": WT_FRAMESIZE,
+                "e2e_latency": CT_E2E_LATENCY[i],
+                "jitter": CT_JITTER[i],
+                "frame_size": CT_FRAMESIZE[i],
                 "route": route,
                 "pdb_map": None,
                 "weight": 1.0,
@@ -364,23 +368,25 @@ def build_agv(
             + [(0, offset)]
             + list(itertools.pairwise(list(reversed(random_path(size, offset)))))
         )
+
+        i = random.randrange(WT_TYPES)
         if pdc > 0:
             streams.append(
                 {
                     "name": f"CORE_AGV{n}_{str(s).zfill(2)}",
-                    "period": WT_PERIOD,
-                    "phase": WT_PHASE,
-                    "pcp": WT_PCP,
+                    "period": WT_PERIOD[i],
+                    "phase": WT_PHASE[i],
+                    "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY,
-                    "jitter": WT_JITTER,
-                    "frame_loss": WT_FRAME_LOSS,
-                    "frame_size": WT_FRAMESIZE,
+                    "e2e_latency": WT_E2E_LATENCY[i],
+                    "jitter": WT_JITTER[i],
+                    "frame_loss": WT_FRAME_LOSS[i],
+                    "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
                         {
                             "link": (0, offset),
-                            "reliability": rel,
+                            "reliability": rel[i],
                             "policy": RTI_POLICIES[WT_RTI_POLICY],
                             "histogram": f"../data/modified_histograms/pdc_downlink_{pdc_name}_{vslot}.json",
                         }
@@ -392,19 +398,19 @@ def build_agv(
             streams.append(
                 {
                     "name": f"CORE_AGV{n}_{str(s).zfill(2)}",
-                    "period": WT_PERIOD,
-                    "phase": WT_PHASE,
-                    "pcp": WT_PCP,
+                    "period": WT_PERIOD[i],
+                    "phase": WT_PHASE[i],
+                    "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY,
-                    "jitter": WT_JITTER,
-                    "frame_loss": WT_FRAME_LOSS,
-                    "frame_size": WT_FRAMESIZE,
+                    "e2e_latency": WT_E2E_LATENCY[i],
+                    "jitter": WT_JITTER[i],
+                    "frame_loss": WT_FRAME_LOSS[i],
+                    "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
                         {
                             "link": (0, offset),
-                            "reliability": rel,
+                            "reliability": rel[i],
                             "policy": RTI_POLICIES[WT_RTI_POLICY],
                             "histogram": "../data/histograms/downlink_histogram.json",
                         }
@@ -420,23 +426,25 @@ def build_agv(
             + [(offset, 0)]
             + list(itertools.pairwise(list(reversed(random_path(csize, 0)))))
         )
+
+        i = random.randrange(WT_TYPES)
         if pdc > 0:
             streams.append(
                 {
                     "name": f"AGV{n}_CORE_{str(s).zfill(2)}",
-                    "period": WT_PERIOD,
-                    "phase": WT_PHASE,
-                    "pcp": WT_PCP,
+                    "period": WT_PERIOD[i],
+                    "phase": WT_PHASE[i],
+                    "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY,
-                    "jitter": WT_JITTER,
-                    "frame_loss": WT_FRAME_LOSS,
-                    "frame_size": WT_FRAMESIZE,
+                    "e2e_latency": WT_E2E_LATENCY[i],
+                    "jitter": WT_JITTER[i],
+                    "frame_loss": WT_FRAME_LOSS[i],
+                    "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
                         {
                             "link": (offset, 0),
-                            "reliability": rel,
+                            "reliability": rel[i],
                             "policy": RTI_POLICIES[WT_RTI_POLICY],
                             "histogram": f"../data/modified_histograms/pdc_uplink_{pdc_name}_{vslot}.json",
                         }
@@ -448,19 +456,19 @@ def build_agv(
             streams.append(
                 {
                     "name": f"AGV{n}_CORE_{str(s).zfill(2)}",
-                    "period": WT_PERIOD,
-                    "phase": WT_PHASE,
-                    "pcp": WT_PCP,
+                    "period": WT_PERIOD[i],
+                    "phase": WT_PHASE[i],
+                    "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY,
-                    "jitter": WT_JITTER,
-                    "frame_loss": WT_FRAME_LOSS,
-                    "frame_size": WT_FRAMESIZE,
+                    "e2e_latency": WT_E2E_LATENCY[i],
+                    "jitter": WT_JITTER[i],
+                    "frame_loss": WT_FRAME_LOSS[i],
+                    "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
                         {
                             "link": (offset, 0),
-                            "reliability": rel,
+                            "reliability": rel[i],
                             "policy": RTI_POLICIES[WT_RTI_POLICY],
                             "histogram": "../data/histograms/uplink_histogram.json",
                         }
@@ -509,7 +517,9 @@ def main():
         "-core_ct", "--core_cross_traffic_specification", type=int, default=5
     )
 
-    parser.add_argument("-rel", "--reliability", type=float, default=WT_RELIABILITY)
+    parser.add_argument(
+        "-rel", "--reliability", type=float, nargs="+", default=WT_RELIABILITY
+    )
     parser.add_argument("-pdc", "--packet_delay_correction", type=float, default=0)
     parser.add_argument("-vslot", "--virtual_slot_size", type=int, default=0)
     parser.add_argument("-suffix", "--suffix", type=str, default="")

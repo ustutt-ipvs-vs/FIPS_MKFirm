@@ -1,5 +1,4 @@
 #include "dgm/transmission_graph.h"
-#include "heuristic/initial/transmission_ordering.h"
 #include <functional>
 #include <gtest/gtest.h>
 #include <print>
