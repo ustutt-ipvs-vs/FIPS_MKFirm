@@ -77,6 +77,7 @@ struct TransmissionGraph {
   [[nodiscard]] auto check_consistency() const noexcept -> bool;
   [[nodiscard]] auto is_valid(GlobalOpIndex id) const noexcept -> bool;
   [[nodiscard]] auto contains(const Stream *stream) const noexcept -> bool;
+  [[nodiscard]] auto operation_to_string(GlobalOpIndex id) const noexcept -> std::string;
 
 private:
   enum FlipPolicy : std::uint8_t { MOVE_BEFORE, MOVE_AFTER };

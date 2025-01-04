@@ -567,15 +567,19 @@ void TransmissionGraph::print_critical_path(std::ostream &out) const {
     } else if (op->id == SINK_ID) {
       op_str = "sink";
     } else {
-      op_str =
-          std::format("{}: ([{},{}], {{{}}})", op->id, op->source->id, op->target->id,
-                      std::accumulate(op->frames.begin(), op->frames.end(), std::string(""),
-                                      [](auto s, auto frame) {
-                                        return s == "" ? frame.name() : s + ", " + frame.name();
-                                      }));
+      op_str = operation_to_string(op->id);
     }
     std::println(out, "{}: {}", op_str, cost);
   }
+}
+
+auto TransmissionGraph::operation_to_string(GlobalOpIndex id) const noexcept -> std::string {
+  const auto &op = processing_order_[id];
+  return std::format(
+      "{}: ([{},{}], {{{}}})", op.id, op.source->id, op.target->id,
+      std::accumulate(op.frames.begin(), op.frames.end(), std::string(""), [](auto s, auto frame) {
+        return s == "" ? frame.name() : s + ", " + frame.name();
+      }));
 }
 
 void TransmissionGraph::print_critical_cost(std::ostream &out) const {
@@ -591,13 +595,7 @@ void TransmissionGraph::print_critical_cost(std::ostream &out) const {
     } else if (id == SINK_ID) {
       op_str = "sink";
     } else {
-      const auto &op = processing_order_[id];
-      op_str =
-          std::format("{}: ([{},{}], {{{}}})", id, op.source->id, op.target->id,
-                      std::accumulate(op.frames.begin(), op.frames.end(), std::string(""),
-                                      [](auto s, auto frame) {
-                                        return s == "" ? frame.name() : s + ", " + frame.name();
-                                      }));
+      op_str = operation_to_string(id);
     }
     std::println(out, "{}{}{}", std::get<0>(e), op_str, std::get<2>(e));
   }
