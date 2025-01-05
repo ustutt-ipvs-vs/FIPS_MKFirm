@@ -12,34 +12,36 @@ RTI_POLICIES = {
 }  # chose "minimize_dmax" iff using emergency traffic
 
 STREAM_OBJECTIVES = {
-    "lateness": 0,  # more scheduling flexibility
-    "tardiness": 1,  # better suited for emergency traffic
-}  # chose "minimize_dmax" iff using emergency traffic
+    "lateness": 0,
+    "tardiness": 1,
+    "jitter": 2,
+    "tardiness_and_jitter": 3,
+}
 
 DATA_RATE = 100000000  # 100Mbps
 PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
 PROCESSING_DELAY = 0
 
 CT_TYPES = 1
-CT_PERIOD = [500000]
+CT_PERIOD = [2500000]
 CT_PHASE = [0]
 CT_FRAMESIZE = [100]
-CT_E2E_LATENCY = [500000]
-CT_JITTER = [0]
-CT_PCP = [6]
+CT_E2E_LATENCY = [250000]
+CT_JITTER = [1000]
+CT_PCP = [7]
 
 WT_TYPES = 1
-WT_PERIOD = [25000000]  # 25ms, 50ms, 100ms
+WT_PERIOD = [20000000]  # 25ms, 50ms, 100ms
 WT_PHASE = [0]
 WT_FRAMESIZE = [100]  # 100 byte, 100 byte, 100 byte
-WT_E2E_LATENCY = [25000000]  # 25ms, 50ms, 100ms
-WT_JITTER = [5000000]  # 250us, 250us, 250us
+WT_E2E_LATENCY = [20000000]  # 25ms, 50ms, 100ms
+WT_JITTER = [100000]  # 250us, 250us, 250us
 WT_PCP = [6]
 
 WT_RELIABILITY = [0.9999]
 WT_FRAME_LOSS = [0]
 WT_RTI_POLICY = "minimize_interval"
-STREAM_OBJECTIVE = "tardiness"
+STREAM_OBJECTIVE = "tardiness_and_jitter"
 
 OMNETPP_X = 700
 OMNETPP_Y = 500

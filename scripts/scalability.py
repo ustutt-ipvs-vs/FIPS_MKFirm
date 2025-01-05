@@ -7,8 +7,8 @@ import sys
 import datetime
 import pandas as pd
 
-AGV_WT_OUT = 400
-AGV_WT_IN = 400
+AGV_WT_OUT = 200
+AGV_WT_IN = 200
 AGV_CT = 15
 CORE_CT = 15
 
