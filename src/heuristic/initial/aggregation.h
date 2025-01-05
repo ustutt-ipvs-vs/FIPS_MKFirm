@@ -21,7 +21,7 @@ private:
   const StreamStorage *stream_storage_;
   const NetworkTopology *network_;
 
-  [[nodiscard]] auto wireless_links(StreamId id) const noexcept -> Generator<Link>;
+  [[nodiscard]] auto bottleneck_links(StreamId id) const noexcept -> Generator<Link>;
 };
 
 } // namespace tsndgm

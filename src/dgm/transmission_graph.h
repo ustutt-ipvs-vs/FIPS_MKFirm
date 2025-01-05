@@ -42,7 +42,7 @@ struct TransmissionGraph {
   auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
 
   auto is_feasible() -> bool;
-  auto critical_path() -> const CriticalPath *;
+  auto critical_path(std::optional<GlobalObjective> objective = {}) -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
   void print_critical_cost(std::ostream &out = std::cout) const;
   template <TraversalDirection D> [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;

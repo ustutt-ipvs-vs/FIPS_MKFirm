@@ -81,7 +81,8 @@ auto CriticalPath::compute(GlobalObjective objective_type) -> std::optional<Crit
 auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Result {
   switch (objective_type) {
   case MAKESPAN:
-    return {crit_cost_[SINK_ID].cost, SINK_ID};
+    last_result_ = {crit_cost_[SINK_ID].cost, SINK_ID};
+    return last_result_;
   case PER_FRAME:
     last_result_ = {0, SINK_ID};
     for (auto *op : sink_->route_pred) {

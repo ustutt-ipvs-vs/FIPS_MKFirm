@@ -1,9 +1,11 @@
 #include "aggregation.h"
+#include "dgm/critical_path.h"
 #include "dgm/transmission_graph.h"
 #include "dgm/transmission_operations.h"
 #include "network/stream_storage.h"
 #include "network/topology.h"
 #include "utils/generator.h"
+#include <print>
 #include <utility>
 
 namespace tsndgm {
@@ -32,7 +34,7 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
     }
   };
 
-  for (auto link : wireless_links(id)) {
+  for (auto link : bottleneck_links(id)) {
     TransmissionOperation *prev = nullptr;
     for (LinkOpPosition i = 0; i < g[link].size();) {
       auto *op = g[link][i];
@@ -41,6 +43,7 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
       }
 
       if (merge_condition(op, prev)) {
+        std::println("merge");
         g.merge({prev->id, op->id});
         prev = nullptr;
         if (g.is_feasible()) {
@@ -61,19 +64,41 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
 auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
                                              StreamId id) noexcept -> TransmissionGraph {
   TransmissionGraph g1 = g;
+  std::println("g1:");
   g1 = compress_stream<MERGE_AFTER>(std::move(g1), id);
-  if (g1.is_feasible()) {
+  std::println("g:");
+  g = compress_stream<MERGE_BEFORE>(std::move(g), id);
+
+  // if there's only one feasible option, return that one
+  if (g1.is_feasible() && !g.is_feasible()) {
+    std::println(" -> choose g1");
     return g1;
   }
-  g = compress_stream<MERGE_BEFORE>(std::move(g), id);
+  if (!g1.is_feasible() && g.is_feasible()) {
+    std::println(" -> choose g");
+    return g;
+  }
+
+  // otherwise, use makespan as a secondary objective
+  auto g1_makespan = g1.critical_path(MAKESPAN)->get_last().objective;
+  auto g_makespan = g.critical_path(MAKESPAN)->get_last().objective;
+  if (g1_makespan < g_makespan) {
+    std::println(" -> choose g1");
+    return g1;
+  }
+
+  std::println(" -> choose g");
   return g;
 }
 
-auto NecessaryQueueingMerge::wireless_links(StreamId id) const noexcept -> Generator<Link> {
+auto NecessaryQueueingMerge::bottleneck_links(StreamId id) const noexcept -> Generator<Link> {
   const auto &stream = stream_storage_->streams[id];
-  for (auto [hop1, hop2] : stream.route.traverse_wireless_hops()) {
-    Link link(hop1->device->id, hop2->device->id);
-    co_yield link;
+  for (auto pair : stream.route.traverse_wireless_hops()) {
+    const auto *hop = pair.second;
+    for (auto *child : hop->childs) {
+      Link link(hop->device->id, child->device->id);
+      co_yield link;
+    }
   }
 }
 

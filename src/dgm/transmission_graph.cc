@@ -164,8 +164,15 @@ auto TransmissionGraph::is_feasible() -> bool {
   std::unreachable();
 }
 
-auto TransmissionGraph::critical_path() -> const CriticalPath * {
-  if (critical_path_.valid || critical_path_.compute(objective_type).has_value()) {
+auto TransmissionGraph::critical_path(std::optional<GlobalObjective> objective)
+    -> const CriticalPath * {
+  if (objective.has_value()) {
+    auto res = critical_path_.compute(*objective);
+    if (res.has_value()) {
+      return &critical_path_;
+    }
+    critical_path_.valid = false; // force recomputation for different objective
+  } else if (critical_path_.valid || critical_path_.compute(objective_type).has_value()) {
     return &critical_path_;
   }
   return nullptr;
