@@ -86,9 +86,12 @@ auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Re
   case PER_FRAME:
     last_result_ = {0, SINK_ID};
     for (auto *op : sink_->route_pred) {
-      auto d = op->weights[JOB].outgoing;
+      auto dmax = op->weights[JOB].outgoing;
       for (auto frame : op->frames) {
-        auto objective = frame.stream->objective(crit_cost_[op->id].cost + d, frame.id);
+        auto dmin = frame.stream->pdb_map.at(op->link()).d_total.min;
+        auto arrival_interval =
+            DelayInterval(dmin + crit_cost_[op->id].cost, dmax + crit_cost_[op->id].cost);
+        auto objective = frame.stream->objective(arrival_interval, frame.id);
         if (objective > last_result_.objective) {
           last_result_ = {objective, op->id};
         }

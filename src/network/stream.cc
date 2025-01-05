@@ -58,12 +58,19 @@ auto Stream::frames(Delay hyper_cycle) const -> Generator<FrameIndex> {
   }
 }
 
-auto Stream::objective(Delay arrival_time, FrameIndex frame) const -> Delay {
+auto Stream::objective(DelayInterval arrival_interval, FrameIndex frame) const -> Delay {
+  Delay const lateness = arrival_interval.max - (phase + frame * period + e2e_latency);
+  Delay const jitter_violation =
+      std::max(arrival_interval.max - arrival_interval.min - jitter, static_cast<Delay>(0));
   switch (objective_type) {
   case LATENESS:
-    return arrival_time - (phase + frame * period + e2e_latency);
+    return lateness;
   case TARDINESS:
-    return std::max(arrival_time - (phase + frame * period + e2e_latency), static_cast<Delay>(0));
+    return std::max(lateness, static_cast<Delay>(0));
+  case JITTER:
+    return jitter_violation;
+  case TARDINESS_AND_JITTER:
+    return std::max(lateness, jitter_violation);
   }
   std::unreachable();
 }

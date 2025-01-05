@@ -16,7 +16,7 @@ using DelayMap = std::map<Link, Delay>;
 
 [[maybe_unused]] constexpr PCPValue DefaultPCP = 7;
 
-enum StreamObjective : std::uint8_t { LATENESS, TARDINESS };
+enum StreamObjective : std::uint8_t { LATENESS, TARDINESS, JITTER, TARDINESS_AND_JITTER };
 
 struct Stream {
   Route route;
@@ -37,7 +37,7 @@ struct Stream {
   void populate_wireline_pdbs();
 
   [[nodiscard]] auto frames(Delay hyper_cycle) const -> Generator<FrameIndex>;
-  [[nodiscard]] auto objective(Delay arrival_time, FrameIndex frame) const -> Delay;
+  [[nodiscard]] auto objective(DelayInterval arrival_interval, FrameIndex frame) const -> Delay;
 };
 
 struct Frame {
