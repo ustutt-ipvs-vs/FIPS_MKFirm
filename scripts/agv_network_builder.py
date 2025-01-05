@@ -6,7 +6,6 @@ import json
 import subprocess
 import sys
 
-random.seed(1234)
 RTI_POLICIES = {
     "minimize_interval": 0,  # more scheduling flexibility
     "minimize_dmax": 1,  # better suited for emergency traffic
@@ -481,7 +480,13 @@ def build_agv(
     OMNETPP_Y += 100 * 2 ** (size - 1)
 
 
-def main():
+def main(raw_args=None):
+    global offset, network, streams
+
+    offset = 0
+    network = {"nodes": [], "links": []}
+    streams = []
+
     parser = argparse.ArgumentParser(
         prog="Robost Network Builder",
         description="builds a simple network with N AGVs that want to communication with M edge servers",
@@ -525,7 +530,11 @@ def main():
     parser.add_argument("-suffix", "--suffix", type=str, default="")
     parser.add_argument("-prefix", "--prefix", type=str, default="data")
 
-    args = parser.parse_args()
+    parser.add_argument("-seed", "--seed", type=int, default=None)
+    parser.add_argument("-q", "--quiet", default=False, action="store_true")
+
+    args = parser.parse_args(raw_args)
+    random.seed(args.seed)
     path_suffix = args.suffix
     path_prefix = args.prefix
 
@@ -548,7 +557,8 @@ def main():
             args.virtual_slot_size,
         )
 
-    print(f"generated network with {len(streams)} streams")
+    if not args.quiet:
+        print(f"generated network with {len(streams)} streams")
 
     with open(f"{path_prefix}/network{path_suffix}.json", "w") as f:
         json.dump(network, f, indent=4)
