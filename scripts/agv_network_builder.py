@@ -224,6 +224,7 @@ def build_agv(
     wt_out: int,
     ct: int,
     rel: list[float],
+    jitter: list[float],
     bypass: bool,
     pdc: float,
     vslot: int,
@@ -380,7 +381,7 @@ def build_agv(
                     "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
                     "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": WT_JITTER[i],
+                    "jitter": jitter[i],
                     "frame_loss": WT_FRAME_LOSS[i],
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
@@ -404,7 +405,7 @@ def build_agv(
                     "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
                     "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": WT_JITTER[i],
+                    "jitter": jitter[i],
                     "frame_loss": WT_FRAME_LOSS[i],
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
@@ -438,7 +439,7 @@ def build_agv(
                     "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
                     "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": WT_JITTER[i],
+                    "jitter": jitter[i],
                     "frame_loss": WT_FRAME_LOSS[i],
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
@@ -462,7 +463,7 @@ def build_agv(
                     "pcp": WT_PCP[i],
                     "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
                     "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": WT_JITTER[i],
+                    "jitter": jitter[i],
                     "frame_loss": WT_FRAME_LOSS[i],
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
@@ -527,6 +528,8 @@ def main(raw_args=None):
     parser.add_argument(
         "-rel", "--reliability", type=float, nargs="+", default=WT_RELIABILITY
     )
+    parser.add_argument("-jitter", "--jitter", type=float, nargs="+", default=WT_JITTER)
+
     parser.add_argument("-pdc", "--packet_delay_correction", type=float, default=0)
     parser.add_argument("-vslot", "--virtual_slot_size", type=int, default=0)
     parser.add_argument("-suffix", "--suffix", type=str, default="")
@@ -554,6 +557,7 @@ def main(raw_args=None):
             args.agv_outgoing_wireless_traffic_specification[i],
             args.agv_cross_traffic_specification[i],
             args.reliability,
+            args.jitter,
             args.cross_traffic_bypass,
             args.packet_delay_correction,
             args.virtual_slot_size,

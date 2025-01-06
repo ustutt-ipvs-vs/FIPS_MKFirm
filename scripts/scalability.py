@@ -1,6 +1,6 @@
-from agv_network_builder import main as benchmark_builder
-import random
+from agv_network_builder import main as benchmark_builder, WT_JITTER
 import subprocess
+import itertools
 import os
 import copy
 import sys
@@ -13,10 +13,11 @@ AGV_CT = 15
 CORE_CT = 15
 
 TESTED_RELIABILITY = [0.9, 0.99, 0.999, 0.9999]
+TESTED_JITTER = [1000, 20000, 40000, 60000, 80000, 100000]
 REPETITIONS = 100
 
 
-def build_benchmark(rel: float, seed: int):
+def build_benchmark(rel: float, seed: int, jitter=WT_JITTER):
     args = [
         "-agv_wt_out",
         str(AGV_WT_OUT),
@@ -28,8 +29,10 @@ def build_benchmark(rel: float, seed: int):
         str(CORE_CT),
         "-rel",
         str(rel),
+        "-jitter",
+        str(jitter),
         "-suffix",
-        str(rel),
+        f"{rel}_{jitter}",
         "-seed",
         str(seed),
         "-q",
@@ -42,18 +45,19 @@ def build_benchmarks():
     # this ensures the same stream set for all tests
     seed = int(datetime.datetime.now().timestamp())
     for rel in TESTED_RELIABILITY:
-        build_benchmark(rel, seed)
+        for jitter in TESTED_JITTER:
+            build_benchmark(rel, seed, jitter)
 
 
-def start_benchmark(rel: float, sti: bool):
+def start_benchmark(rel: float, sti: bool, jitter=WT_JITTER):
     if sti:
         return subprocess.Popen(
             [
                 "./benchmarks/heuristic",
                 "-n",
-                f"../data/network{rel}.json",
+                f"../data/network{rel}_{jitter}.json",
                 "-s",
-                f"../data/streams{rel}.json",
+                f"../data/streams{rel}_{jitter}.json",
                 "-sti",
             ],
             stdout=subprocess.PIPE,
@@ -63,9 +67,9 @@ def start_benchmark(rel: float, sti: bool):
             [
                 "./benchmarks/heuristic",
                 "-n",
-                f"../data/network{rel}.json",
+                f"../data/network{rel}_{jitter}.json",
                 "-s",
-                f"../data/streams{rel}.json",
+                f"../data/streams{rel}_{jitter}.json",
             ],
             stdout=subprocess.PIPE,
         )
@@ -76,8 +80,10 @@ def get_result(out: str):
 
 
 def run_benchmarks():
+    BENCHMARKS = list(itertools.product(TESTED_RELIABILITY, TESTED_JITTER))
+
     cwd = os.getcwd()
-    res = {"STI": [0] * len(TESTED_RELIABILITY), "FIPS": [0] * len(TESTED_RELIABILITY)}
+    res = {"STI": [0] * len(BENCHMARKS), "FIPS": [0] * len(BENCHMARKS)}
     for r in range(REPETITIONS):
         os.chdir(cwd)
         build_benchmarks()
@@ -85,11 +91,11 @@ def run_benchmarks():
         os.chdir("release")
         handles = {}
         for sti in [False, True]:
-            for rel in TESTED_RELIABILITY:
-                handles[(sti, rel)] = start_benchmark(rel, sti)
+            for rel, jitter in BENCHMARKS:
+                handles[(sti, (rel, jitter))] = start_benchmark(rel, sti, jitter)
 
         for key, handle in handles.items():
-            i = TESTED_RELIABILITY.index(key[1])
+            i = BENCHMARKS.index(key[1])
             out, errs = handle.communicate()
             if key[0]:
                 res["STI"][i] += get_result(out)
@@ -98,11 +104,11 @@ def run_benchmarks():
 
         intermediate_res = copy.deepcopy(res)
 
-        for i in range(len(TESTED_RELIABILITY)):
+        for i in range(len(BENCHMARKS)):
             intermediate_res["STI"][i] = int(intermediate_res["STI"][i] / (r + 1))
             intermediate_res["FIPS"][i] = int(intermediate_res["FIPS"][i] / (r + 1))
 
-        df = pd.DataFrame(data=intermediate_res, index=TESTED_RELIABILITY)
+        df = pd.DataFrame(data=intermediate_res, index=BENCHMARKS)
         print("Average results after repetition:", r)
         print(df)
 
