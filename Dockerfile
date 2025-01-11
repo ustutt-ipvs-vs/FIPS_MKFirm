@@ -1,9 +1,12 @@
 FROM docker.io/gcc:latest
 
-COPY . /usr/src/libtsndgm
 WORKDIR /usr/src/libtsndgm
 
-RUN apt-get update && apt-get -y install cmake nlohmann-json3-dev
-RUN rm -rf build && mkdir build && cd build && cmake .. && make -j
+RUN apt-get update && apt-get -y install cmake nlohmann-json3-dev python3-venv
+RUN python -m venv /venv
+
+ENV PATH="/venv/bin:$PATH"
+COPY ./python_requirements.txt /usr/src/python_requirements.txt
+RUN pip install -Ur /usr/src/python_requirements.txt
 
 CMD ["/bin/bash"]
