@@ -2,8 +2,6 @@
 
 #include "histogram.h"
 #include "topology.h"
-#include <filesystem>
-#include <fstream>
 #include <nlohmann/json.hpp>
 
 namespace tsndgm {

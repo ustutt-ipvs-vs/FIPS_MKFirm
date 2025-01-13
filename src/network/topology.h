@@ -90,6 +90,7 @@ struct NetworkTopology {
   void dump_to_file(const std::filesystem::path &out) const;
 
   void print() const;
+  [[nodiscard]] auto link_to_string(Link link) const -> std::string;
 
 private:
   std::vector<DeviceProperty> devices_;

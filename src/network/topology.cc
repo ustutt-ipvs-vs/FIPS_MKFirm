@@ -161,6 +161,10 @@ void NetworkTopology::print() const {
   std::cout << std::setw(4) << json;
 }
 
+auto NetworkTopology::link_to_string(Link link) const -> std::string {
+  return std::format("[{},{}]", at(link.source).name, at(link.target).name);
+}
+
 void Route::recompute_listeners() {
   listeners_.clear();
   for (auto &[id, hop] : hops_) {
