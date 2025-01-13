@@ -2,7 +2,6 @@ from agv_network_builder import main as benchmark_builder, WT_JITTER
 import subprocess
 import itertools
 import os
-import copy
 import sys
 import datetime
 import pandas as pd
@@ -102,14 +101,25 @@ def run_benchmarks():
             else:
                 res["FIPS"][i] += get_result(out)
 
-        intermediate_res = copy.deepcopy(res)
+        intermediate_results = {"STI": {}, "FIPS": {}}
+        for t in ["STI", "FIPS"]:
+            for jitter in TESTED_JITTER:
+                intermediate_results[t][jitter] = {}
 
-        for i in range(len(BENCHMARKS)):
-            intermediate_res["STI"][i] = int(intermediate_res["STI"][i] / (r + 1))
-            intermediate_res["FIPS"][i] = int(intermediate_res["FIPS"][i] / (r + 1))
+            for i, (rel, jitter) in enumerate(BENCHMARKS):
+                intermediate_results[t][jitter][rel] = int(res[t][i] / (r + 1))
 
-        df = pd.DataFrame(data=intermediate_res, index=BENCHMARKS)
+            for jitter in TESTED_JITTER:
+                intermediate_results[t][jitter] = intermediate_results[t][
+                    jitter
+                ].values()
+
         print("Average results after repetition:", r)
+        print("STI:")
+        df = pd.DataFrame(data=intermediate_results["STI"], index=TESTED_RELIABILITY)
+        print(df)
+        print("FIPS:")
+        df = pd.DataFrame(data=intermediate_results["FIPS"], index=TESTED_RELIABILITY)
         print(df)
 
 
