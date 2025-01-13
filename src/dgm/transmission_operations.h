@@ -51,6 +51,7 @@ struct TransmissionOperation {
     return std::ranges::find_if(frames, [stream](auto &f) { return f.stream == stream; }) !=
            frames.end();
   }
+  [[nodiscard]] auto contains(Frame frame) const { return frames.contains(frame); }
   [[nodiscard]] auto valid() const { return !frames.empty(); }
 };
 
@@ -84,6 +85,9 @@ struct ProcessingOrder {
   [[nodiscard]] auto src() const noexcept -> const TransmissionOperation &;
   [[nodiscard]] auto sink() noexcept -> TransmissionOperation &;
   [[nodiscard]] auto sink() const noexcept -> const TransmissionOperation &;
+
+  [[nodiscard]] auto
+  traverse_operations(Frame frame) const noexcept -> Generator<const TransmissionOperation *>;
 
 private:
   void relink_pointers() noexcept;

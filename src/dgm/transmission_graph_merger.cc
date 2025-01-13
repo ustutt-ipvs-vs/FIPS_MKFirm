@@ -25,7 +25,8 @@ auto TransmissionGraphMerger::generate(GlobalObjective objective_type) noexcept
 auto TransmissionGraphMerger::consistent_merge(
     GlobalObjective objective_type, std::vector<TransmissionOperation> &&initial,
     const std::vector<GlobalOpIndex> &selection) -> TransmissionGraph {
-  TransmissionGraph g(stream_storage_, std::move(initial), objective_type, merged_stream_filter_);
+  TransmissionGraph g(stream_storage_, topology_, std::move(initial), objective_type,
+                      merged_stream_filter_);
 
   for (auto op_id : selection) {
     if (op_id <= SINK_ID) {

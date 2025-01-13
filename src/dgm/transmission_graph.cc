@@ -1,5 +1,6 @@
 #include "transmission_graph.h"
 #include "critical_path.h"
+#include "dgm/tsn_configuration.h"
 #include "network/histogram.h"
 #include "network/stream.h"
 #include "network/stream_storage.h"
@@ -26,10 +27,10 @@
 namespace tsndgm {
 
 TransmissionGraph::TransmissionGraph(
-    const StreamStorage *stream_storage, GlobalObjective objective_type,
-    const InitialTransmissionOrder &initial,
+    const StreamStorage *stream_storage, const NetworkTopology *topology,
+    GlobalObjective objective_type, const InitialTransmissionOrder &initial,
     const std::function<bool(const Stream &)> &stream_filter) noexcept
-    : objective_type(objective_type), stream_storage_(stream_storage),
+    : objective_type(objective_type), stream_storage_(stream_storage), topology_(topology),
       stream_filter_(stream_filter) {
   processing_order_.operations.reserve(stream_storage->number_of_transmissions(stream_filter_));
 
@@ -54,10 +55,10 @@ TransmissionGraph::TransmissionGraph(
 }
 
 TransmissionGraph::TransmissionGraph(
-    const StreamStorage *stream_storage, std::vector<TransmissionOperation> &&initial,
-    GlobalObjective objective_type,
+    const StreamStorage *stream_storage, const NetworkTopology *topology,
+    std::vector<TransmissionOperation> &&initial, GlobalObjective objective_type,
     const std::function<bool(const Stream &)> &stream_filter) noexcept
-    : objective_type(objective_type), stream_storage_(stream_storage),
+    : objective_type(objective_type), stream_storage_(stream_storage), topology_(topology),
       stream_filter_(stream_filter) {
   std::swap(processing_order_.operations, initial);
   processing_order_.total_operations = processing_order_.operations.size();
@@ -77,51 +78,17 @@ TransmissionGraph::TransmissionGraph(
   rebuild();
 }
 
-// auto TransmissionGraph::consistent_build(
-//     const StreamStorage *stream_storage, std::vector<TransmissionOperation> &&initial,
-//     GlobalObjective objective_type, const std::function<bool(const Stream &)> &stream_filter,
-//     const std::function<int(const TransmissionOperation &)> &priority_filter) noexcept
-//     -> TransmissionGraph {
-//   auto g = TransmissionGraph(stream_storage, std::move(initial), objective_type, stream_filter);
-//
-//   PartialOrder consistency(g.size());
-//   for (GlobalOpIndex op_id = SINK_ID + 1; op_id < g.size(); op_id++) {
-//     auto [op, pos] = g[op_id];
-//     for (auto *pred : op->route_pred) {
-//       consistency[op->id].insert(pred->id);
-//     }
-//
-//     Link const link = op->link();
-//     for (LinkOpPosition i = pos; i > 0; i--) {
-//       auto *prev_op = g[link][i - 1];
-//       auto related_edges = g.equivalence_class({prev_op->id, op->id});
-//       if (std::ranges::any_of(related_edges, [](auto &pair) { return pair.first > pair.second; })
-//       &&
-//           priority_filter(*op) > priority_filter(*prev_op)) {
-//         // inconsistent selection, and op should take precendence
-//         for (auto &pair : related_edges) {
-//           consistency[pair.first].insert(pair.second);
-//         }
-//       }
-//     }
-//   }
-//
-//   auto sorted = topological_sort(g.processing_order_.operations, consistency).collect(g.size());
-//   auto g_new = TransmissionGraph(stream_storage, std::move(sorted), objective_type,
-//   stream_filter); assert(g_new.check_consistency()); return g_new;
-// }
-
 TransmissionGraph::TransmissionGraph(const TransmissionGraph &other) noexcept
     : objective_type(other.objective_type), processing_order_(other.processing_order_),
-      stream_storage_(other.stream_storage_), flip_log_(other.flip_log_),
-      stream_filter_(other.stream_filter_) {
+      stream_storage_(other.stream_storage_), topology_(other.topology_),
+      flip_log_(other.flip_log_), stream_filter_(other.stream_filter_) {
   rebuild();
 }
 
 TransmissionGraph::TransmissionGraph(TransmissionGraph &&other) noexcept
     : objective_type(other.objective_type), processing_order_(std::move(other.processing_order_)),
-      stream_storage_(other.stream_storage_), flip_log_(std::move(other.flip_log_)),
-      stream_filter_(std::move(other.stream_filter_)) {
+      stream_storage_(other.stream_storage_), topology_(other.topology_),
+      flip_log_(std::move(other.flip_log_)), stream_filter_(std::move(other.stream_filter_)) {
   rebuild();
 }
 
@@ -133,6 +100,7 @@ auto TransmissionGraph::operator=(const TransmissionGraph &other) noexcept -> Tr
   objective_type = other.objective_type;
   processing_order_ = other.processing_order_;
   stream_storage_ = other.stream_storage_;
+  topology_ = other.topology_;
   flip_log_ = other.flip_log_;
   stream_filter_ = other.stream_filter_;
   rebuild();
@@ -147,10 +115,15 @@ auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept -> Transmi
   objective_type = other.objective_type;
   std::swap(processing_order_, other.processing_order_);
   stream_storage_ = other.stream_storage_;
+  topology_ = other.topology_;
   std::swap(flip_log_, other.flip_log_);
   std::swap(stream_filter_, other.stream_filter_);
   rebuild();
   return *this;
+}
+
+auto TransmissionGraph::derive_tsn_configuration() -> TSNConfiguration {
+  return TSNConfiguration(dfs_, processing_order_, topology_, stream_storage_->hyper_cycle);
 }
 
 auto TransmissionGraph::is_feasible() -> bool {
@@ -261,7 +234,7 @@ void TransmissionGraph::rebuild() {
     recompute_positions(link);
   }
   dfs_ = DFSTraversal(&processing_order_, &position_);
-  critical_path_ = CriticalPath(&dfs_, processing_order_);
+  critical_path_ = CriticalPath(dfs_, processing_order_);
 }
 
 void TransmissionGraph::add_frame(Frame frame) noexcept {

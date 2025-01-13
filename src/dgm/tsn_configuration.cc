@@ -1,0 +1,151 @@
+#include "tsn_configuration.h"
+#include "dgm/transmission_operations.h"
+#include "dgm/traversal.h"
+#include "network/topology.h"
+#include "nlohmann/json_fwd.hpp"
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <ranges>
+#include <utility>
+
+namespace tsndgm {
+
+auto PeriodicGate::operator+=(const PeriodicGateInterval &interval) -> PeriodicGate & {
+  Delay const duration = interval.closing_time - interval.opening_time;
+  if (interval.opening_time == offset && !durations.empty()) {
+    durations.back() += duration;
+  } else {
+    durations.push_back(interval.opening_time - offset);
+    durations.push_back(duration);
+  }
+  offset = interval.opening_time + duration;
+  return *this;
+}
+
+void PeriodicGate::extend_to(Delay time) {
+  switch (initial) {
+  [[likely]] case CLOSED:
+    offset = time - offset;
+    durations[0] += offset;
+    return;
+  [[unlikely]] case OPEN:
+    durations.push_back(time - offset);
+    offset = 0;
+    return;
+  }
+}
+
+TSNConfiguration::TSNConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
+                                   const NetworkTopology *topology, Delay hyper_cycle)
+    : dfs_(&dfs), critical_path_(dfs, processing_order), processing_order_(&processing_order),
+      topology_(topology), hyper_cycle_(hyper_cycle) {
+  auto status = dfs_->traverse<BACKWARD>(&processing_order.sink(), traversal_events());
+  if (status != COMPLETED) {
+    *this = TSNConfiguration();
+  }
+  for (auto &[_, gate] : gcl_config) {
+    gate.extend_to(hyper_cycle_);
+  }
+  add_meta_data("makespan", critical_path_[SINK_ID].cost);
+}
+
+constexpr auto TSNConfiguration::visitor_finish_vertex(auto visitor) noexcept -> TraversalStatus {
+  const auto &v = *std::get<Vertex *>(visitor);
+  if (v.id <= SINK_ID) {
+    return CONTINUE;
+  }
+
+  if (std::ranges::find(v.route_pred, &processing_order_->src()) != v.route_pred.end()) {
+    add_talker_entry(v);
+  }
+  add_gcl_entry(v);
+  add_psfp_entries(v);
+
+  return CONTINUE;
+}
+
+void TSNConfiguration::add_talker_entry(const TransmissionOperation &op) noexcept {
+  DeviceId const device = op.link().source;
+  for (auto frame : op.frames) {
+    if (frame.stream->route[device].is_talker()) {
+      talker_config[frame] = critical_path_[op.id].cost;
+    }
+  }
+}
+
+void TSNConfiguration::add_gcl_entry(const TransmissionOperation &op) noexcept {
+  Delay const opening_time = critical_path_[op.id].cost;
+  Delay const closing_time = opening_time + op.weights.pdb.d_trans.max;
+
+  gcl_config[{op.link(), op.pcp}] += PeriodicGateInterval{opening_time, closing_time};
+}
+
+void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcept {
+  DeviceId const device = op.link().target;
+  auto d_min = std::ranges::fold_left(
+      op.frames, std::numeric_limits<Delay>::max(), [&op](Delay d, auto &frame) {
+        return std::min(d, frame.stream->pdb_map.at(op.link()).d_total.min);
+      });
+
+  psfp_config[device].push_back(PSFPGate{
+      .frames = op.frames,
+      .open = critical_path_[op.id].cost + d_min,
+      .close = critical_path_[op.id].cost + op.weights.pdb.d_total.max,
+  });
+}
+
+[[nodiscard]] auto TSNConfiguration::dump_to_json() const -> nlohmann::json {
+  nlohmann::json j = {{"EXACT", nlohmann::json::object()},
+                      {"TALKERS", nlohmann::json::object()},
+                      {"GCL", nlohmann::json::object()},
+                      {"PSFP", nlohmann::json::object()},
+                      {"META", meta_data_}};
+
+  // Exact transmission offsets at each hop
+  for (auto frame : std::views::keys(talker_config)) {
+    j["EXACT"][frame.name()] = nlohmann::json::object();
+    for (const auto *op : processing_order_->traverse_operations(frame)) {
+      j["EXACT"][frame.name()][topology_->link_to_string(op->link())] = critical_path_[op->id].cost;
+    }
+  }
+
+  // Exact transmission offset at talkers
+  for (const auto &[frame, tx_time] : talker_config) {
+    j["TALKERS"][frame.name()] = tx_time;
+  }
+
+  // Gate Control Lists
+  for (const auto &[port, gate] : gcl_config) {
+    auto [link, pcp] = port;
+    auto egress_port = topology_->link_to_string(link);
+    j["GCL"][egress_port][std::format("Q{}", pcp)]["initial"] = gate.initial;
+    j["GCL"][egress_port][std::format("Q{}", pcp)]["offset"] = gate.offset;
+    j["GCL"][egress_port][std::format("Q{}", pcp)]["durations"] = gate.durations;
+  }
+
+  // Per-Stream Filtering and Policing
+  for (const auto &[device_id, psfp_gates] : psfp_config) {
+    auto device_name = topology_->at(device_id).name;
+    j["PSFP"][device_name] = nlohmann::json::array();
+    for (const auto &gate : psfp_gates) {
+      nlohmann::json j_gate{
+          {"frames", nlohmann::json::array()}, {"open", gate.open}, {"close", gate.close}};
+      for (const auto &frame : gate.frames) {
+        j_gate["frames"].push_back(frame.name());
+      }
+      j["PSFP"][device_name].push_back(std::move(j_gate));
+    }
+  }
+
+  return j;
+}
+
+void TSNConfiguration::dump_to_file(const std::filesystem::path &out) const {
+  auto json = dump_to_json();
+  std::ofstream ofstream(out);
+  ofstream << std::setw(4) << json;
+}
+
+} // namespace tsndgm

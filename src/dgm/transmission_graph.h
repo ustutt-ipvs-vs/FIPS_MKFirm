@@ -5,6 +5,7 @@
 #include "network/topology.h"
 #include "transmission_operations.h"
 #include "traversal.h"
+#include "tsn_configuration.h"
 #include <vector>
 
 namespace tsndgm {
@@ -28,12 +29,12 @@ struct TransmissionGraph {
 
   TransmissionGraph() = default;
   explicit TransmissionGraph(
-      const StreamStorage *stream_storage, GlobalObjective objective_type = MAKESPAN,
-      const InitialTransmissionOrder &initial = {},
+      const StreamStorage *stream_storage, const NetworkTopology *topology = nullptr,
+      GlobalObjective objective_type = MAKESPAN, const InitialTransmissionOrder &initial = {},
       const std::function<bool(const Stream &)> &stream_filter = default_stream_filter) noexcept;
   explicit TransmissionGraph(
-      const StreamStorage *stream_storage, std::vector<TransmissionOperation> &&initial,
-      GlobalObjective objective_type = MAKESPAN,
+      const StreamStorage *stream_storage, const NetworkTopology *topology,
+      std::vector<TransmissionOperation> &&initial, GlobalObjective objective_type = MAKESPAN,
       const std::function<bool(const Stream &)> &stream_filter = default_stream_filter) noexcept;
 
   TransmissionGraph(const TransmissionGraph &other) noexcept;
@@ -42,6 +43,7 @@ struct TransmissionGraph {
   auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
 
   auto is_feasible() -> bool;
+  auto derive_tsn_configuration() -> TSNConfiguration;
   auto critical_path(std::optional<GlobalObjective> objective = {}) -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
   void print_critical_cost(std::ostream &out = std::cout) const;
@@ -85,6 +87,7 @@ private:
 
   ProcessingOrder processing_order_;
   const StreamStorage *stream_storage_;
+  const NetworkTopology *topology_;
 
   DFSTraversal dfs_;
   CriticalPath critical_path_;

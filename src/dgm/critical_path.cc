@@ -8,7 +8,6 @@
 #include <format>
 #include <limits>
 #include <optional>
-#include <print>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -16,58 +15,8 @@
 
 namespace tsndgm {
 
-constexpr auto CriticalPath::visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus {
-  auto *v = std::get<Vertex *>(visitor);
-  crit_cost_[v->id] = {0, 0};
-  return CONTINUE;
-}
-
-constexpr auto CriticalPath::visitor_finish_edge(auto visitor) noexcept -> TraversalStatus {
-  auto [u, v, type] = std::get<Edge>(visitor);
-  Delay const uv_cost =
-      crit_cost_[u->id].cost + u->weights[type].outgoing + v->weights[type].incoming;
-  if (uv_cost > crit_cost_[v->id].cost) {
-    crit_cost_[v->id].cost = uv_cost;
-    crit_cost_[v->id].pred = u->id;
-  }
-  return CONTINUE;
-}
-
-constexpr auto CriticalPath::visitor_tree_edge(auto visitor) noexcept -> TraversalStatus {
-  auto [u, v, type] = std::get<Edge>(visitor);
-  cycle_pred_[v->id] = {.cost = u->weights[type].outgoing + v->weights[type].incoming,
-                        .pred = u->id};
-  return CONTINUE;
-}
-
-constexpr auto CriticalPath::visitor_back_edge(auto visitor) noexcept -> TraversalStatus {
-  auto [u, v, type] = std::get<Edge>(visitor);
-  auto w = u->id;
-  auto cost = 0;
-  while (w != v->id) {
-    auto &op = (*processing_order_)[w];
-    auto f = *op.frames.begin();
-    std::println("{} [{},{}], {}#{}", op.id, op.source->name, op.target->name, f.stream->name,
-                 f.id);
-    cost += cycle_pred_[w].cost;
-    w = cycle_pred_[w].pred;
-  }
-  auto &op = (*processing_order_)[w];
-  auto f = *op.frames.begin();
-  std::println("{} [{},{}], {}#{}", op.id, op.source->name, op.target->name, f.stream->name, f.id);
-  return ABORT;
-}
-
 auto CriticalPath::compute(GlobalObjective objective_type) -> std::optional<CriticalPath::Result> {
-  auto status = dfs_->traverse<BACKWARD>(
-      sink_,
-      DFSEventHandler(
-          std::make_pair(DFSVisitor::DISCOVER_VERTEX,
-                         [&](auto v) { return visitor_discover_vertex(v); }),
-          std::make_pair(DFSVisitor::TREE_EDGE, [&](auto e) { return visitor_tree_edge(e); }),
-          std::make_pair(DFSVisitor::FINISH_EDGE, [&](auto e) { return visitor_finish_edge(e); }),
-          std::make_pair(DFSVisitor::BACK_EDGE, [&](auto e) { return visitor_back_edge(e); })));
-
+  auto status = dfs_->traverse<BACKWARD>(sink_, traversal_events());
   if (status == COMPLETED) {
     valid = true;
     return objective(objective_type);

@@ -1,6 +1,9 @@
 #include "transmission_operations.h"
 #include "network/histogram.h"
+#include "network/stream.h"
 #include "network/topology.h"
+#include "utils/generator.h"
+#include <deque>
 #include <utility>
 
 namespace tsndgm {
@@ -115,6 +118,21 @@ auto ProcessingOrder::sink() noexcept -> TransmissionOperation & { return operat
 
 auto ProcessingOrder::sink() const noexcept -> const TransmissionOperation & {
   return operations[SINK_ID];
+}
+
+auto ProcessingOrder::traverse_operations(Frame frame) const noexcept
+    -> Generator<const TransmissionOperation *> {
+  std::deque<const TransmissionOperation *> visited_operations = {&src()};
+  while (!visited_operations.empty()) {
+    const auto *op = visited_operations.front();
+    visited_operations.pop_front();
+    for (const auto *op_succ : op->route_succ) {
+      if (op_succ->contains(frame)) {
+        visited_operations.push_back(op_succ);
+        co_yield op_succ;
+      }
+    }
+  }
 }
 
 } // namespace tsndgm

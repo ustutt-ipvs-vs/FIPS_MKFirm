@@ -40,6 +40,9 @@ template <typename... Functions> class DFSEventHandler {
 public:
   constexpr DFSEventHandler(std::pair<DFSVisitor::Event, Functions> &&...funcs) noexcept
       : funcs_(std::move(funcs)...) {}
+  constexpr DFSEventHandler(
+      const std::tuple<std::pair<DFSVisitor::Event, Functions>...> &funcs) noexcept
+      : funcs_(funcs) {}
   constexpr ~DFSEventHandler() noexcept = default;
 
   // copy
@@ -66,6 +69,12 @@ public:
       }
     }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(args)...);
     return status;
+  }
+
+  template <typename... FunctionsOther>
+  auto add(std::tuple<std::pair<DFSVisitor::Event, FunctionsOther>...> &&funcs) {
+    return DFSEventHandler<Functions..., FunctionsOther...>(
+        std::tuple_cat(std::move(funcs_), std::move(funcs)));
   }
 
 private:
