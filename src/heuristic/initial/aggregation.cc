@@ -5,7 +5,6 @@
 #include "network/stream_storage.h"
 #include "network/topology.h"
 #include "utils/generator.h"
-#include <print>
 #include <utility>
 
 namespace tsndgm {
@@ -43,7 +42,6 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
       }
 
       if (merge_condition(op, prev)) {
-        std::println("merge");
         g.merge({prev->id, op->id});
         prev = nullptr;
         if (g.is_feasible()) {
@@ -64,31 +62,21 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
 auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g,
                                              StreamId id) noexcept -> TransmissionGraph {
   TransmissionGraph g1 = g;
-  std::println("g1:");
   g1 = compress_stream<MERGE_AFTER>(std::move(g1), id);
-  std::println("g:");
   g = compress_stream<MERGE_BEFORE>(std::move(g), id);
 
   // if there's only one feasible option, return that one
   if (g1.is_feasible() && !g.is_feasible()) {
-    std::println(" -> choose g1");
     return g1;
   }
   if (!g1.is_feasible() && g.is_feasible()) {
-    std::println(" -> choose g");
     return g;
   }
 
   // otherwise, use makespan as a secondary objective
   auto g1_makespan = g1.critical_path(MAKESPAN)->get_last().objective;
   auto g_makespan = g.critical_path(MAKESPAN)->get_last().objective;
-  if (g1_makespan < g_makespan) {
-    std::println(" -> choose g1");
-    return g1;
-  }
-
-  std::println(" -> choose g");
-  return g;
+  return g1_makespan < g_makespan ? g1 : g;
 }
 
 auto NecessaryQueueingMerge::bottleneck_links(StreamId id) const noexcept -> Generator<Link> {

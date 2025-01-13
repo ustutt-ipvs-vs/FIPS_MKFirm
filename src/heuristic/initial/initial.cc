@@ -44,9 +44,9 @@ auto IncrementalHeuristic::add_wired_stream(
   auto stream_filter = [&](const Stream &s) {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
-  auto g_new =
-      TransmissionGraphMerger(stream_storage_, g, graphs_.stream_graphs[id], stream_filter, eval)
-          .generate(PER_FRAME);
+  auto g_new = TransmissionGraphMerger(stream_storage_, network_, g, graphs_.stream_graphs[id],
+                                       stream_filter, eval)
+                   .generate(PER_FRAME);
   assert(g_new.check_consistency());
 
   if (g_new.is_feasible()) {
@@ -54,7 +54,7 @@ auto IncrementalHeuristic::add_wired_stream(
       return !s.route.has_wireless_links() &&
              (std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s);
     };
-    g_wired_ = TransmissionGraphMerger(stream_storage_, std::move(g_wired_),
+    g_wired_ = TransmissionGraphMerger(stream_storage_, network_, std::move(g_wired_),
                                        graphs_.stream_graphs[id], wired_stream_filter, eval)
                    .generate(PER_FRAME);
     assert(g_wired_.check_consistency());
@@ -73,7 +73,7 @@ auto IncrementalHeuristic::add_wireless_stream(
            (std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s);
   };
   auto g_wireless_new =
-      TransmissionGraphMerger(stream_storage_, g_wireless_, graphs_.stream_graphs[id],
+      TransmissionGraphMerger(stream_storage_, network_, g_wireless_, graphs_.stream_graphs[id],
                               wireless_stream_filter, eval)
           .generate(PER_FRAME);
   g_wireless_new = aggregation_.compress_stream(std::move(g_wireless_new), id);
@@ -83,9 +83,9 @@ auto IncrementalHeuristic::add_wireless_stream(
   auto stream_filter = [&](const Stream &s) {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
-  auto g_new =
-      TransmissionGraphMerger(stream_storage_, g_wired_, g_wireless_new, stream_filter, eval)
-          .generate(PER_FRAME);
+  auto g_new = TransmissionGraphMerger(stream_storage_, network_, g_wired_, g_wireless_new,
+                                       stream_filter, eval)
+                   .generate(PER_FRAME);
   assert(g_new.check_consistency());
 
   if (g_new.is_feasible()) {
@@ -107,15 +107,16 @@ auto StrictTemporalIsolationHeuristic::add_stream(
   auto stream_filter = [&](const Stream &s) {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
-  TransmissionGraph g_new =
-      TransmissionGraphMerger(stream_storage_, g, graphs_.stream_graphs[id], stream_filter, eval)
-          .generate(PER_FRAME);
+  TransmissionGraph g_new = TransmissionGraphMerger(stream_storage_, network_, g,
+                                                    graphs_.stream_graphs[id], stream_filter, eval)
+                                .generate(PER_FRAME);
 
   if (g_new.is_feasible()) {
     g = std::move(g_new);
     feasible_streams_.push_back(&stream);
     return true;
   }
+  g_new.print_critical_path();
   return false;
 }
 

@@ -12,20 +12,15 @@
 
 namespace tsndgm {
 
-PrecedenceGraphs::PrecedenceGraphs(
-    const StreamStorage *stream_storage,
-    const std::function<bool(const Stream &)> &stream_filter) noexcept
-    : stream_storage_(stream_storage) {
-  for (auto [s_id, _] : stream_storage->filtered_streams_with_id(stream_filter)) {
-    add_stream(s_id);
-  }
-}
+PrecedenceGraphs::PrecedenceGraphs(const StreamStorage *stream_storage) noexcept
+    : stream_storage_(stream_storage) {}
 
 void PrecedenceGraphs::add_stream(StreamId id) noexcept {
   const auto &stream = stream_storage_->streams[id];
 
   auto stream_filter = [&stream](const auto &other) { return &stream == &other; };
-  stream_graphs.insert({id, TransmissionGraph(stream_storage_, MAKESPAN, {}, stream_filter)});
+  stream_graphs.insert(
+      {id, TransmissionGraph(stream_storage_, nullptr, MAKESPAN, {}, stream_filter)});
 
   for (auto [dev1, dev2] : stream.route.traverse_links()) {
     Link const link(dev1->id, dev2->id);
