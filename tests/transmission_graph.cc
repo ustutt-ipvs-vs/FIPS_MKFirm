@@ -82,7 +82,7 @@ protected:
   StreamStorage streams;
 };
 
-TEST_F(TransmissionGraphTest, Build) { auto g = TransmissionGraph(&streams); }
+TEST_F(TransmissionGraphTest, Build) { auto g = TransmissionGraph(&streams, &network); }
 
 TEST_F(TransmissionGraphTest, CriticalPath) {
   auto g = TransmissionGraph(&streams);
@@ -93,7 +93,7 @@ TEST_F(TransmissionGraphTest, CriticalPath) {
 TEST_F(TransmissionGraphTest, TestOperations) {
   int N = 100;
 
-  TransmissionGraph g = TransmissionGraph(&streams, PER_FRAME);
+  TransmissionGraph g = TransmissionGraph(&streams, &network, PER_FRAME);
   auto res = g.critical_path();
 
   std::mt19937 gen(std::random_device{}());
