@@ -312,6 +312,9 @@ def build_ini_file(
     for stream in streams:
         stream["ports"] = []
         for frame in range(int(1e6 * hyper_period / stream["period"])):
+            if f"{stream['name']}#{frame}" not in tsn_config["TALKERS"]:
+                break
+
             stream["source"] = stream["route"][0][0]
             stream["target"] = stream["route"][-1][1]
             ini_tt_streams += tt_stream_ini.format(
