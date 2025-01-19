@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-template <typename T> auto json_get_or_default(nlohmann::json j, T default_value) -> T {
+template <typename T> auto json_get_or_default(const nlohmann::json &j, T default_value) -> T {
   return (j.is_null() ? default_value : j.template get<T>());
 }
 
@@ -180,8 +180,8 @@ public:
   [[nodiscard]] auto begin() const -> Iterator { return hops_.begin(); }
   [[nodiscard]] auto end() const -> Iterator { return hops_.end(); }
 
-  [[nodiscard]] auto
-  traverse_links() const -> Generator<std::pair<const DeviceProperty *, const DeviceProperty *>>;
+  [[nodiscard]] auto traverse_links() const
+      -> Generator<std::pair<const DeviceProperty *, const DeviceProperty *>>;
   [[nodiscard]] auto traverse_talker_links() const -> Generator<Link>;
   [[nodiscard]] auto traverse_listener_links() const -> Generator<Link>;
   [[nodiscard]] auto traverse_consecutive_links() const -> Generator<std::pair<Link, Link>>;

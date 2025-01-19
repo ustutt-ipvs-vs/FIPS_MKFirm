@@ -21,9 +21,9 @@ struct TransmissionWeights {
   PacketDelayBudget pdb;
 
   static auto from_pdb(const PacketDelayBudget &pdb) {
-    return TransmissionWeights{.fifo = {-pdb.d_total.min, pdb.d_trans.max},
-                               .machine = {0, pdb.d_trans.max},
-                               .job = {0, pdb.d_total.max},
+    return TransmissionWeights{.fifo = {.incoming = -pdb.d_total.min, .outgoing = pdb.d_trans.max},
+                               .machine = {.incoming = 0, .outgoing = pdb.d_trans.max},
+                               .job = {.incoming = 0, .outgoing = pdb.d_total.max},
                                .pdb = pdb};
   }
 
@@ -86,8 +86,8 @@ struct ProcessingOrder {
   [[nodiscard]] auto sink() noexcept -> TransmissionOperation &;
   [[nodiscard]] auto sink() const noexcept -> const TransmissionOperation &;
 
-  [[nodiscard]] auto
-  traverse_operations(Frame frame) const noexcept -> Generator<const TransmissionOperation *>;
+  [[nodiscard]] auto traverse_operations(Frame frame) const noexcept
+      -> Generator<const TransmissionOperation *>;
 
 private:
   void relink_pointers() noexcept;

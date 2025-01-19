@@ -167,8 +167,8 @@ void TransmissionGraph::flip(const FlipInstruction &inst) noexcept {
 
 void TransmissionGraph::flip(GlobalOpIndex op_id, LinkOpPosition new_pos) noexcept {
   auto &op = processing_order_[op_id];
-  Link const link = {op.source->id, op.target->id};
-  flip({link, op_id, new_pos});
+  Link const link = {.source = op.source->id, .target = op.target->id};
+  flip({.link = link, .op_id = op_id, .new_pos = new_pos});
 }
 
 void TransmissionGraph::undo_last_flip() noexcept {
@@ -446,11 +446,12 @@ auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *
   for (auto pair : related_neighbor_pairs(first, second)) {
     const auto &op1 = processing_order_[pair.first];
 
-    LinkOpPosition cur_pos = position_[pair.first].second;
-    LinkOpPosition req_pos = position_[pair.second].second;
+    LinkOpPosition const cur_pos = position_[pair.first].second;
+    LinkOpPosition const req_pos = position_[pair.second].second;
     if (flip_required(req_pos, cur_pos)) {
-      FlipInstruction inst = {
-          .link = {op1.source->id, op1.target->id}, .op_id = op1.id, .new_pos = req_pos};
+      FlipInstruction inst = {.link = {.source = op1.source->id, .target = op1.target->id},
+                              .op_id = op1.id,
+                              .new_pos = req_pos};
       co_yield inst;
     }
   }
@@ -555,11 +556,11 @@ void TransmissionGraph::print_critical_path(std::ostream &out) const {
 
 auto TransmissionGraph::operation_to_string(GlobalOpIndex id) const noexcept -> std::string {
   const auto &op = processing_order_[id];
-  return std::format(
-      "{}: ([{},{}], {{{}}})", op.id, op.source->id, op.target->id,
-      std::accumulate(op.frames.begin(), op.frames.end(), std::string(""), [](auto s, auto frame) {
-        return s == "" ? frame.name() : s + ", " + frame.name();
-      }));
+  return std::format("{}: ([{},{}], {{{}}})", op.id, op.source->id, op.target->id,
+                     std::accumulate(op.frames.begin(), op.frames.end(), std::string(""),
+                                     [](const auto &s, auto frame) {
+                                       return s == "" ? frame.name() : s + ", " + frame.name();
+                                     }));
 }
 
 void TransmissionGraph::print_critical_cost(std::ostream &out) const {

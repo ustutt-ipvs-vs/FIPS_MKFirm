@@ -17,7 +17,7 @@ auto TransmissionWeights::operator[](EdgeType type) const -> WeightPair {
   case JOB:
     return job;
   default:
-    return {0, 0};
+    return {.incoming = 0, .outgoing = 0};
   }
 }
 

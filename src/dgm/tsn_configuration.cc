@@ -4,9 +4,12 @@
 #include "network/topology.h"
 #include "nlohmann/json_fwd.hpp"
 #include <algorithm>
+#include <bits/ranges_algo.h>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <ranges>
 #include <utility>
 
@@ -79,7 +82,8 @@ void TSNConfiguration::add_gcl_entry(const TransmissionOperation &op) noexcept {
   Delay const opening_time = critical_path_[op.id].cost;
   Delay const closing_time = opening_time + op.weights.pdb.d_trans.max;
 
-  gcl_config[{op.link(), op.pcp}] += PeriodicGateInterval{opening_time, closing_time};
+  gcl_config[{op.link(), op.pcp}] +=
+      PeriodicGateInterval{.opening_time = opening_time, .closing_time = closing_time};
 }
 
 void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcept {

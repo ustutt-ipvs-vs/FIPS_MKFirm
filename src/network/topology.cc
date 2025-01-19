@@ -44,8 +44,8 @@ NetworkTopology::NetworkTopology(nlohmann::json &&json) {
   for (auto &json_link : json["links"]) {
     // C++23 does not yet allow designated and unnamed initializer clauses
     const DataLinkProperty data_link = {{
-                                            json_link["source"],
-                                            json_link["target"],
+                                            .source = json_link["source"],
+                                            .target = json_link["target"],
                                         },
                                         DataLinkType(json_link["type"]),
                                         json_link["data_rate"],
@@ -349,7 +349,7 @@ auto Route::traverse_listener_links() const -> Generator<Link> {
 
 auto Route::traverse_consecutive_links() const -> Generator<std::pair<Link, Link>> {
   for (auto [hop1, hop2] : traverse_hops()) {
-    Link link12(hop1->device->id, hop2->device->id);
+    Link const link12(hop1->device->id, hop2->device->id);
     for (auto *hop3 : hop2->childs) {
       // there are certain FRER replication pattern that can appear
       // like a cycle, while there is no real cyclic dependency.
@@ -357,7 +357,7 @@ auto Route::traverse_consecutive_links() const -> Generator<std::pair<Link, Link
       if (hop3->device->id == hop1->device->id) {
         continue;
       }
-      Link link23(hop2->device->id, hop3->device->id);
+      Link const link23(hop2->device->id, hop3->device->id);
       auto link_pair = std::make_pair(link12, link23);
       co_yield link_pair;
     }

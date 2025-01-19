@@ -194,7 +194,7 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
 
   color_[start->id] = GRAY;
   std::deque<VisitorState<D>> stack = {VisitorState<D>(this, start)};
-  co_yield visitor.update({start, DFSVisitor::DISCOVER_VERTEX});
+  co_yield visitor.update({.visited_element = start, .event = DFSVisitor::DISCOVER_VERTEX});
 
   while (!stack.empty()) {
     VisitorState<D> next = stack.front();
@@ -206,19 +206,19 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
 
     while (next.it != next.end()) {
       Vertex *v = &(*next.it);
-      EdgeType type = next.it.type();
+      EdgeType const type = next.it.type();
       Edge e = D == BACKWARD ? Edge(v, next.op, type) : Edge(next.op, v, type);
-      co_yield visitor.update({e, DFSVisitor::EXAMINE_EDGE});
+      co_yield visitor.update({.visited_element = e, .event = DFSVisitor::EXAMINE_EDGE});
 
       switch (color_[v->id]) {
       [[likely]] case WHITE: {
-        co_yield visitor.update({e, DFSVisitor::TREE_EDGE});
+        co_yield visitor.update({.visited_element = e, .event = DFSVisitor::TREE_EDGE});
 
         next.tree_edge = e;
         stack.push_front(++next);
         color_[v->id] = GRAY;
 
-        co_yield visitor.update({v, DFSVisitor::DISCOVER_VERTEX});
+        co_yield visitor.update({.visited_element = v, .event = DFSVisitor::DISCOVER_VERTEX});
         if (v->id <= SINK_ID) {
           next = VisitorState<D>(this, v);
         } else {
@@ -228,13 +228,13 @@ auto DFSTraversal::traverse(Vertex *start) -> Generator<DFSVisitor> {
         break;
       }
       [[unlikely]] case GRAY:
-        co_yield visitor.update({e, DFSVisitor::BACK_EDGE});
-        co_yield visitor.update({e, DFSVisitor::FINISH_EDGE});
+        co_yield visitor.update({.visited_element = e, .event = DFSVisitor::BACK_EDGE});
+        co_yield visitor.update({.visited_element = e, .event = DFSVisitor::FINISH_EDGE});
         ++next;
         break;
       [[unlikely]] case BLACK:
-        co_yield visitor.update({e, DFSVisitor::FORWARD_OR_CROSS_EDGE});
-        co_yield visitor.update({e, DFSVisitor::FINISH_EDGE});
+        co_yield visitor.update({.visited_element = e, .event = DFSVisitor::FORWARD_OR_CROSS_EDGE});
+        co_yield visitor.update({.visited_element = e, .event = DFSVisitor::FINISH_EDGE});
         ++next;
         break;
       default:

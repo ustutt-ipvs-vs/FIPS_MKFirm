@@ -65,7 +65,7 @@ public:
           }
           return CONTINUE;
         };
-        status = (std::invoke(f, std::get<I>(funcs_), event, std::forward<Args>(args)...), ...);
+        status = (std::invoke(f, std::get<I>(funcs_), event, args...), ...);
       }
     }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(args)...);
     return status;

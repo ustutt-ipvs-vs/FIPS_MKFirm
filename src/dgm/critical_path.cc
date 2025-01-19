@@ -23,17 +23,17 @@ auto CriticalPath::compute(GlobalObjective objective_type) -> std::optional<Crit
   }
 
   valid = false;
-  last_result_ = {std::numeric_limits<Delay>::max(), SINK_ID};
+  last_result_ = {.objective = std::numeric_limits<Delay>::max(), .critical_vertex = SINK_ID};
   return {};
 }
 
 auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Result {
   switch (objective_type) {
   case MAKESPAN:
-    last_result_ = {crit_cost_[SINK_ID].cost, SINK_ID};
+    last_result_ = {.objective = crit_cost_[SINK_ID].cost, .critical_vertex = SINK_ID};
     return last_result_;
   case PER_FRAME:
-    last_result_ = {0, SINK_ID};
+    last_result_ = {.objective = 0, .critical_vertex = SINK_ID};
     for (auto *op : sink_->route_pred) {
       auto dmax = op->weights[JOB].outgoing;
       for (auto frame : op->frames) {
@@ -42,7 +42,7 @@ auto CriticalPath::objective(GlobalObjective objective_type) -> CriticalPath::Re
             DelayInterval(dmin + crit_cost_[op->id].cost, dmax + crit_cost_[op->id].cost);
         auto objective = frame.stream->objective(arrival_interval, frame.id);
         if (objective > last_result_.objective) {
-          last_result_ = {objective, op->id};
+          last_result_ = {.objective = objective, .critical_vertex = op->id};
         }
       }
     }
