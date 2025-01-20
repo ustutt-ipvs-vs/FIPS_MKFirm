@@ -19,24 +19,25 @@ struct TransmissionGraphMerger {
   [[nodiscard]] auto generate(GlobalObjective objective_type) noexcept -> TransmissionGraph;
 
 private:
-  using Ordering =
-      std::map<std::pair<Delay, Frame>, std::pair<TransmissionOperation, TransmissionGraph *>>;
+  using Ordering = std::map<std::tuple<Delay, Frame, GlobalOpIndex>,
+                            std::pair<TransmissionOperation, TransmissionGraph *>>;
 
   const StreamStorage *stream_storage_;
   const NetworkTopology *topology_;
   std::function<bool(const Stream &)> merged_stream_filter_;
   std::function<Delay(TransmissionGraph &, GlobalOpIndex)> eval_;
 
-  [[nodiscard]] auto
-  consistent_merge(GlobalObjective objective_type, std::vector<TransmissionOperation> &&initial,
-                   const std::vector<GlobalOpIndex> &selection) -> TransmissionGraph;
+  [[nodiscard]] auto consistent_merge(GlobalObjective objective_type,
+                                      std::vector<TransmissionOperation> &&initial,
+                                      const std::vector<GlobalOpIndex> &selection)
+      -> TransmissionGraph;
 
   [[nodiscard]] auto compute_ordering() noexcept -> Ordering;
-  [[nodiscard]] static auto
-  compute_initial(const Ordering &order) noexcept -> std::vector<TransmissionOperation>;
-  [[nodiscard]] static auto
-  compute_old_to_new_mapping(const TransmissionGraph *g,
-                             const Ordering &order) noexcept -> std::vector<GlobalOpIndex>;
+  [[nodiscard]] static auto compute_initial(const Ordering &order) noexcept
+      -> std::vector<TransmissionOperation>;
+  [[nodiscard]] static auto compute_old_to_new_mapping(const TransmissionGraph *g,
+                                                       const Ordering &order) noexcept
+      -> std::vector<GlobalOpIndex>;
 };
 
 } // namespace tsndgm

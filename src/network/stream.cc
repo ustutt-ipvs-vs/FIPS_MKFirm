@@ -63,6 +63,8 @@ auto Stream::objective(DelayInterval arrival_interval, FrameIndex frame) const -
   Delay const jitter_violation =
       std::max(arrival_interval.max - arrival_interval.min - jitter, static_cast<Delay>(0));
   switch (objective_type) {
+  case NO_OBJECTIVE:
+    return 0;
   case LATENESS:
     return lateness;
   case TARDINESS:

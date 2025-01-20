@@ -15,13 +15,14 @@
 namespace tsndgm {
 
 IncrementalHeuristic::IncrementalHeuristic(const StreamStorage *stream_storage,
-                                           const NetworkTopology *network) noexcept
-    : stream_storage_(stream_storage), network_(network), graphs_(stream_storage),
-      aggregation_(stream_storage, network) {}
+                                           const NetworkTopology *network,
+                                           GlobalObjective objective) noexcept
+    : objective_(objective), stream_storage_(stream_storage), network_(network),
+      graphs_(stream_storage), aggregation_(stream_storage, network) {}
 
 auto IncrementalHeuristic::add_stream(
-    StreamId id,
-    const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval) noexcept -> bool {
+    StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval) noexcept
+    -> bool {
   const auto &stream = stream_storage_->streams[id];
   graphs_.add_stream(id);
 
@@ -46,7 +47,7 @@ auto IncrementalHeuristic::add_wired_stream(
   };
   auto g_new = TransmissionGraphMerger(stream_storage_, network_, g, graphs_.stream_graphs[id],
                                        stream_filter, eval)
-                   .generate(PER_FRAME);
+                   .generate(objective_);
   assert(g_new.check_consistency());
 
   if (g_new.is_feasible()) {
@@ -56,7 +57,7 @@ auto IncrementalHeuristic::add_wired_stream(
     };
     g_wired_ = TransmissionGraphMerger(stream_storage_, network_, std::move(g_wired_),
                                        graphs_.stream_graphs[id], wired_stream_filter, eval)
-                   .generate(PER_FRAME);
+                   .generate(objective_);
     assert(g_wired_.check_consistency());
   }
   return g_new;
@@ -75,7 +76,7 @@ auto IncrementalHeuristic::add_wireless_stream(
   auto g_wireless_new =
       TransmissionGraphMerger(stream_storage_, network_, g_wireless_, graphs_.stream_graphs[id],
                               wireless_stream_filter, eval)
-          .generate(PER_FRAME);
+          .generate(objective_);
   g_wireless_new = aggregation_.compress_stream(std::move(g_wireless_new), id);
   assert(g_wireless_new.check_consistency());
 
@@ -85,7 +86,7 @@ auto IncrementalHeuristic::add_wireless_stream(
   };
   auto g_new = TransmissionGraphMerger(stream_storage_, network_, g_wired_, g_wireless_new,
                                        stream_filter, eval)
-                   .generate(PER_FRAME);
+                   .generate(objective_);
   assert(g_new.check_consistency());
 
   if (g_new.is_feasible()) {
@@ -95,12 +96,14 @@ auto IncrementalHeuristic::add_wireless_stream(
 }
 
 StrictTemporalIsolationHeuristic::StrictTemporalIsolationHeuristic(
-    const StreamStorage *stream_storage, const NetworkTopology *network) noexcept
-    : stream_storage_(stream_storage), network_(network), graphs_(stream_storage) {}
+    const StreamStorage *stream_storage, const NetworkTopology *network,
+    GlobalObjective objective) noexcept
+    : objective_(objective), stream_storage_(stream_storage), network_(network),
+      graphs_(stream_storage) {}
 
 auto StrictTemporalIsolationHeuristic::add_stream(
-    StreamId id,
-    const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval) noexcept -> bool {
+    StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval) noexcept
+    -> bool {
   const auto &stream = stream_storage_->streams[id];
   graphs_.add_stream(id);
 
@@ -109,7 +112,7 @@ auto StrictTemporalIsolationHeuristic::add_stream(
   };
   TransmissionGraph g_new = TransmissionGraphMerger(stream_storage_, network_, g,
                                                     graphs_.stream_graphs[id], stream_filter, eval)
-                                .generate(PER_FRAME);
+                                .generate(objective_);
 
   if (g_new.is_feasible()) {
     g = std::move(g_new);

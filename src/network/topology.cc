@@ -243,6 +243,8 @@ Route::Route(nlohmann::json &&json, const NetworkTopology &network) {
   recompute_listeners();
 }
 
+Route::Route(const Path &path, const NetworkTopology &network) { add_path(path, network); }
+
 void Route::copy_links(const Route &other) {
   hops_.clear();
   for (auto [hop1, hop2] : other.traverse_hops()) {

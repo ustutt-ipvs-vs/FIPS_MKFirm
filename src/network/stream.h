@@ -14,14 +14,20 @@ using DelayMap = std::map<Link, Delay>;
 
 [[maybe_unused]] constexpr PCPValue DefaultPCP = 7;
 
-enum StreamObjective : std::uint8_t { LATENESS, TARDINESS, JITTER, TARDINESS_AND_JITTER };
+enum StreamObjective : std::uint8_t {
+  NO_OBJECTIVE,
+  LATENESS,
+  TARDINESS,
+  JITTER,
+  TARDINESS_AND_JITTER
+};
 
 struct Stream {
   Route route;
   FrameSizeRange frame_size;
   Delay period;
   Delay phase{0};
-  StreamObjective objective_type{TARDINESS};
+  StreamObjective objective_type{NO_OBJECTIVE};
   Delay e2e_latency{0};
   Delay jitter{0};
   PCPValue pcp{DefaultPCP};

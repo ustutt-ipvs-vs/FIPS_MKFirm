@@ -14,14 +14,15 @@ namespace tsndgm {
 struct IncrementalHeuristic {
   TransmissionGraph g;
 
-  IncrementalHeuristic(const StreamStorage *stream_storage,
-                       const NetworkTopology *network) noexcept;
+  IncrementalHeuristic(const StreamStorage *stream_storage, const NetworkTopology *network,
+                       GlobalObjective objective = PER_FRAME) noexcept;
 
-  [[nodiscard]] auto
+  [[maybe_unused]] auto
   add_stream(StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
                               release_time_eval) noexcept -> bool;
 
 private:
+  GlobalObjective objective_;
   TransmissionGraph g_wired_;
   TransmissionGraph g_wireless_;
 
@@ -46,13 +47,15 @@ struct StrictTemporalIsolationHeuristic {
   TransmissionGraph g;
 
   StrictTemporalIsolationHeuristic(const StreamStorage *stream_storage,
-                                   const NetworkTopology *network) noexcept;
+                                   const NetworkTopology *network,
+                                   GlobalObjective objective = PER_FRAME) noexcept;
 
-  [[nodiscard]] auto
+  [[maybe_unused]] auto
   add_stream(StreamId id, const std::function<Delay(TransmissionGraph &g, GlobalOpIndex id)> &eval =
                               release_time_eval) noexcept -> bool;
 
 private:
+  GlobalObjective objective_;
   const StreamStorage *stream_storage_;
   const NetworkTopology *network_;
   PrecedenceGraphs graphs_;

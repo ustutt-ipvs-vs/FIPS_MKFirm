@@ -52,15 +52,15 @@ enum DataLinkType : std::uint8_t { WIRED, WIRELESS };
 enum DataLinkDirection : std::uint8_t { UNIDIRECTIONAL, BIDIRECTIONAL };
 struct DataLinkProperty : public Link {
   DataLinkType type;
-  DataRate data_rate;
-  Delay propagation_delay;
+  DataRate data_rate{0};
+  Delay propagation_delay{0};
 };
 
 enum DeviceType : std::uint8_t { END_DEVICE, TSN_BRIDGE, TSN_TRANSLATOR, UNSPECIFIED };
 struct DeviceProperty {
   DeviceId id;
-  DeviceType type;
-  DelayInterval processing_delay;
+  DeviceType type{UNSPECIFIED};
+  DelayInterval processing_delay{0};
   std::string name;
   std::vector<DataLinkProperty> out;
 
@@ -158,6 +158,7 @@ public:
 
   Route() = default;
   Route(nlohmann::json &&j, const NetworkTopology &network);
+  Route(const Path &path, const NetworkTopology &network);
 
   Route(const Route &other);
   auto operator=(const Route &other) -> Route &;

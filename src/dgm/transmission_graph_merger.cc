@@ -22,9 +22,10 @@ auto TransmissionGraphMerger::generate(GlobalObjective objective_type) noexcept
   return consistent_merge(objective_type, std::move(initial), old_to_new);
 }
 
-auto TransmissionGraphMerger::consistent_merge(
-    GlobalObjective objective_type, std::vector<TransmissionOperation> &&initial,
-    const std::vector<GlobalOpIndex> &selection) -> TransmissionGraph {
+auto TransmissionGraphMerger::consistent_merge(GlobalObjective objective_type,
+                                               std::vector<TransmissionOperation> &&initial,
+                                               const std::vector<GlobalOpIndex> &selection)
+    -> TransmissionGraph {
   TransmissionGraph g(stream_storage_, topology_, std::move(initial), objective_type,
                       merged_stream_filter_);
 
@@ -66,7 +67,7 @@ auto TransmissionGraphMerger::compute_ordering() noexcept -> Ordering {
         continue;
       }
       Delay const d = eval_(*g, op_id);
-      order.insert({{d, *op->frames.begin()}, {*op, g}});
+      order.insert({{d, *op->frames.begin(), op->id}, {*op, g}});
     }
   }
   return order;
@@ -86,8 +87,9 @@ auto TransmissionGraphMerger::compute_initial(const Ordering &order) noexcept
   return initial;
 }
 
-auto TransmissionGraphMerger::compute_old_to_new_mapping(
-    const TransmissionGraph *g, const Ordering &order) noexcept -> std::vector<GlobalOpIndex> {
+auto TransmissionGraphMerger::compute_old_to_new_mapping(const TransmissionGraph *g,
+                                                         const Ordering &order) noexcept
+    -> std::vector<GlobalOpIndex> {
   std::vector<GlobalOpIndex> old_to_new(g->size());
   for (auto [i, entry] : std::views::enumerate(order)) {
     auto [op, g_ptr] = entry.second;
