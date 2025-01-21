@@ -1,0 +1,777 @@
+diff --git a/src/apps/edgecloud/UdpEdgeCloudApp.cc b/src/apps/edgecloud/UdpEdgeCloudApp.cc
+deleted file mode 100644
+index b4e908f..0000000
+--- a/src/apps/edgecloud/UdpEdgeCloudApp.cc
++++ /dev/null
+@@ -1,65 +0,0 @@
+-// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
+-// of the DETERMINISTIC6G project receiving funding from the
+-// European Union’s Horizon Europe research and innovation programme
+-// under Grant Agreement No. 101096504.
+-//
+-// SPDX-License-Identifier: LGPL-3.0-or-later
+-
+-#include "UdpEdgeCloudApp.h"
+-#include "inet/common/Simsignals.h"
+-#include "inet/networklayer/common/L3AddressResolver.h"
+-
+-namespace d6g {
+-using namespace inet;
+-
+-Define_Module(UdpEdgeCloudApp)
+-
+-void UdpEdgeCloudApp::socketDataArrived(UdpSocket *socket, Packet *pk) {
+-    // determine its src address/port
+-    pk->clearTags();
+-    pk->trim();
+-
+-    emit(packetSentSignal, pk);
+-
+-    // Delay
+-    simtime_t delay = delayParameter->doubleValue();
+-    if (delay != 0) {
+-        scheduleAfter(delay, pk);
+-    } else {
+-        socket->sendTo(pk, destAddress, destPort);
+-    }
+-
+-}
+-
+-void UdpEdgeCloudApp::handleStartOperation(LifecycleOperation *operation) {
+-    UdpEchoApp::handleStartOperation(operation);
+-
+-    const char *destAddr = par("destAddress");
+-
+-    L3Address result;
+-    L3AddressResolver().tryResolve(destAddr, result);
+-
+-    if (result.isUnspecified())
+-        EV_ERROR << "cannot resolve destination address: " << destAddr << endl;
+-    this->destAddress = result;
+-}
+-
+-void UdpEdgeCloudApp::initialize(int stage) {
+-    UdpEchoApp::initialize(stage);
+-
+-    if (stage == INITSTAGE_LOCAL) {
+-        this->destPort = par("destPort");
+-        this->delayParameter = &par("delay");
+-    }
+-}
+-
+-void UdpEdgeCloudApp::handleMessage(cMessage *msg) {
+-    if (msg->isSelfMessage()) {
+-        auto packet = check_and_cast<Packet *>(msg);
+-        socket.sendTo(packet, destAddress, destPort);
+-    } else {
+-        UdpEchoApp::handleMessage(msg);
+-    }
+-}
+-
+-} //namespace
+diff --git a/src/apps/edgecloud/UdpEdgeCloudApp.h b/src/apps/edgecloud/UdpEdgeCloudApp.h
+index 573cfe8..192c79f 100644
+--- a/src/apps/edgecloud/UdpEdgeCloudApp.h
++++ b/src/apps/edgecloud/UdpEdgeCloudApp.h
+@@ -19,7 +19,7 @@ namespace d6g {
+  * UDPEdgeCloudApp is based on the UdpEchoApp. It is used to forward packets to another node (or back) and delay them.
+  * See the NED file for more info.
+  */
+-class INET_API UdpEdgeCloudApp : public UdpEchoApp {
++class UdpEdgeCloudApp : public UdpEchoApp {
+ protected:
+     virtual void socketDataArrived(UdpSocket *socket, Packet *packet) override;
+     virtual void handleStartOperation(LifecycleOperation *operation) override;
+diff --git a/src/apps/edgecloud/UdpEdgeCloudBasicApp.cc b/src/apps/edgecloud/UdpEdgeCloudBasicApp.cc
+new file mode 100644
+index 0000000..259cbf6
+--- /dev/null
++++ b/src/apps/edgecloud/UdpEdgeCloudBasicApp.cc
+@@ -0,0 +1,86 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#include "UdpEdgeCloudBasicApp.h"
++#include "inet/common/Simsignals.h"
++#include "inet/networklayer/common/L3AddressResolver.h"
++
++namespace d6g {
++using namespace inet;
++
++Define_Module(UdpEdgeCloudBasicApp);
++
++void UdpEdgeCloudBasicApp::initialize(int stage) {
++    UdpBasicApp::initialize(stage);
++
++    if (stage == INITSTAGE_LOCAL) {
++        this->delayParameter = &par("delay");
++    }
++}
++
++void UdpEdgeCloudBasicApp::processStart() {
++    socket.setOutputGate(gate("socketOut"));
++    const char *localAddress = par("localAddress");
++    socket.bind(*localAddress ? L3AddressResolver().resolve(localAddress)
++                              : L3Address(),
++                localPort);
++    setSocketOptions();
++
++    const char *destAddrs = par("destAddresses");
++    cStringTokenizer tokenizer(destAddrs);
++    const char *token;
++
++    while ((token = tokenizer.nextToken()) != nullptr) {
++        destAddressStr.push_back(token);
++        L3Address result;
++        L3AddressResolver().tryResolve(token, result);
++        if (result.isUnspecified())
++            EV_ERROR << "cannot resolve destination address: " << token << endl;
++        destAddresses.push_back(result);
++    }
++
++    if (!destAddresses.empty()) {
++        selfMsg->setKind(SEND);
++        // Begin Modification
++        sendInterval = static_cast<clocktime_t>(par("sendInterval"));
++        clocktime_t processing_delay = this->delayParameter->doubleValue();
++        if (processing_delay >= sendInterval) {
++            throw cRuntimeError("Processing delay must be smaller than send interval");
++        }
++        time_until_next_period = sendInterval - processing_delay;
++        scheduleClockEventAfter(processing_delay, selfMsg);
++        // End Modification
++    } else {
++        if (stopTime >= CLOCKTIME_ZERO) {
++            selfMsg->setKind(STOP);
++            scheduleClockEventAt(stopTime, selfMsg);
++        }
++    }
++}
++
++void UdpEdgeCloudBasicApp::processSend() {
++    sendPacket();
++    // Begin Modification
++    clocktime_t processing_delay = this->delayParameter->doubleValue();
++
++    if (processing_delay >= sendInterval) {
++        throw cRuntimeError("Processing delay must be smaller than send interval");
++    }
++
++    clocktime_t d = time_until_next_period + processing_delay;
++    time_until_next_period =
++            static_cast<clocktime_t>(par("sendInterval")) - processing_delay;
++    // End Modification
++    if (stopTime < CLOCKTIME_ZERO || getClockTime() + d < stopTime) {
++        selfMsg->setKind(SEND);
++        scheduleClockEventAfter(d, selfMsg);
++    } else {
++        selfMsg->setKind(STOP);
++        scheduleClockEventAt(stopTime, selfMsg);
++    }
++}
++} // namespace d6g
+diff --git a/src/apps/edgecloud/UdpEdgeCloudBasicApp.h b/src/apps/edgecloud/UdpEdgeCloudBasicApp.h
+new file mode 100644
+index 0000000..da634c0
+--- /dev/null
++++ b/src/apps/edgecloud/UdpEdgeCloudBasicApp.h
+@@ -0,0 +1,36 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#ifndef DETERMINISTIC6G_UDPEDGECLOUDBASICAPP_H_
++#define DETERMINISTIC6G_UDPEDGECLOUDBASICAPP_H_
++
++#include "inet/applications/udpapp/UdpBasicApp.h"
++#include <omnetpp.h>
++
++using namespace omnetpp;
++using namespace inet;
++namespace d6g {
++
++/**
++ * UdpEdgeCloudBasicApp is based on the UdpEchoApp. It is used to forward
++ * packets to another node (or back) and delay them. See the NED file for more
++ * info.
++ */
++class INET_API UdpEdgeCloudBasicApp : public UdpBasicApp {
++protected:
++  virtual void initialize(int stage) override;
++  virtual void processStart() override;
++  virtual void processSend() override;
++
++  cPar *delayParameter = nullptr;
++  clocktime_t sendInterval = 0;
++  clocktime_t time_until_next_period = 0;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/apps/edgecloud/UdpEdgeCloudBasicApp.ned b/src/apps/edgecloud/UdpEdgeCloudBasicApp.ned
+new file mode 100644
+index 0000000..1be3064
+--- /dev/null
++++ b/src/apps/edgecloud/UdpEdgeCloudBasicApp.ned
+@@ -0,0 +1,21 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++package d6g.apps.edgecloud;
++import inet.applications.udpapp.UdpBasicApp;
++
++
++// The module is designed to simulate a UDP-based application in edge cloud scenarios.
++// This module builds upon the UdpBasicApp with the following additional features:<br>
++// - Forward the packet to a new host<br>
++// - Add delay to the packet
++simple UdpEdgeCloudBasicApp extends UdpBasicApp {
++    parameters:
++        @class(UdpEdgeCloudBasicApp);
++        volatile double delay @unit(s) = default(0s); // specifies delay per UDP packets
++}
++
+diff --git a/src/apps/edgecloud/UdpEdgeCloudEchoApp.cc b/src/apps/edgecloud/UdpEdgeCloudEchoApp.cc
+new file mode 100644
+index 0000000..729a0ab
+--- /dev/null
++++ b/src/apps/edgecloud/UdpEdgeCloudEchoApp.cc
+@@ -0,0 +1,64 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#include "inet/common/Simsignals.h"
++#include "inet/networklayer/common/L3AddressResolver.h"
++#include "UdpEdgeCloudEchoApp.h"
++
++namespace d6g {
++using namespace inet;
++
++Define_Module(UdpEdgeCloudEchoApp);
++
++void UdpEdgeCloudEchoApp::socketDataArrived(UdpSocket *socket, Packet *pk) {
++  // determine its src address/port
++  pk->clearTags();
++  pk->trim();
++
++  emit(packetSentSignal, pk);
++
++  // Delay
++  simtime_t delay = delayParameter->doubleValue();
++  if (delay != 0) {
++    scheduleAfter(delay, pk);
++  } else {
++    socket->sendTo(pk, destAddress, destPort);
++  }
++}
++
++void UdpEdgeCloudEchoApp::handleStartOperation(LifecycleOperation *operation) {
++  UdpEchoApp::handleStartOperation(operation);
++
++  const char *destAddr = par("destAddress");
++
++  L3Address result;
++  L3AddressResolver().tryResolve(destAddr, result);
++
++  if (result.isUnspecified())
++    EV_ERROR << "cannot resolve destination address: " << destAddr << endl;
++  this->destAddress = result;
++}
++
++void UdpEdgeCloudEchoApp::initialize(int stage) {
++  UdpEchoApp::initialize(stage);
++
++  if (stage == INITSTAGE_LOCAL) {
++    this->destPort = par("destPort");
++    this->delayParameter = &par("delay");
++  }
++}
++
++void UdpEdgeCloudEchoApp::handleMessage(cMessage *msg) {
++  if (msg->isSelfMessage()) {
++    auto packet = check_and_cast<Packet *>(msg);
++    socket.sendTo(packet, destAddress, destPort);
++  } else {
++    UdpEchoApp::handleMessage(msg);
++  }
++}
++
++} // namespace d6g
+diff --git a/src/apps/edgecloud/UdpEdgeCloudEchoApp.h b/src/apps/edgecloud/UdpEdgeCloudEchoApp.h
+new file mode 100644
+index 0000000..5fecc73
+--- /dev/null
++++ b/src/apps/edgecloud/UdpEdgeCloudEchoApp.h
+@@ -0,0 +1,36 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#ifndef DETERMINISTIC6G_UDPEDGECLOUDECHOAPP_H_
++#define DETERMINISTIC6G_UDPEDGECLOUDECHOAPP_H_
++
++#include "inet/applications/udpapp/UdpEchoApp.h"
++#include <omnetpp.h>
++
++using namespace omnetpp;
++using namespace inet;
++namespace d6g {
++
++/**
++ * UDPEdgeCloudApp is based on the UdpEchoApp. It is used to forward packets to
++ * another node (or back) and delay them. See the NED file for more info.
++ */
++class INET_API UdpEdgeCloudEchoApp : public UdpEchoApp {
++protected:
++  virtual void socketDataArrived(UdpSocket *socket, Packet *packet) override;
++  virtual void handleStartOperation(LifecycleOperation *operation) override;
++  virtual void initialize(int stage) override;
++  virtual void handleMessage(cMessage *msg) override;
++
++protected:
++  L3Address destAddress;
++  int destPort;
++  cPar *delayParameter = nullptr;
++};
++} // namespace d6g
++
++#endif
+diff --git a/src/apps/edgecloud/UdpEdgeCloudApp.ned b/src/apps/edgecloud/UdpEdgeCloudEchoApp.ned
+similarity index 91%
+rename from src/apps/edgecloud/UdpEdgeCloudApp.ned
+rename to src/apps/edgecloud/UdpEdgeCloudEchoApp.ned
+index 26daab3..ed786d7 100644
+--- a/src/apps/edgecloud/UdpEdgeCloudApp.ned
++++ b/src/apps/edgecloud/UdpEdgeCloudEchoApp.ned
+@@ -9,14 +9,13 @@ package d6g.apps.edgecloud;
+ 
+ import inet.applications.udpapp.UdpEchoApp;
+ 
+-//
+ // The module is designed to simulate a UDP-based application in edge cloud scenarios.
+ // This module builds upon the UdpEchoApp with the following additional features:<br>
+ // - Forward the packet to a new host<br>
+ // - Add delay to the packet
+-simple UdpEdgeCloudApp extends UdpEchoApp {
++simple UdpEdgeCloudEchoApp extends UdpEchoApp {
+     parameters:
+-        @class(UdpEdgeCloudApp);
++        @class(UdpEdgeCloudEchoApp);
+         string destAddress = default(""); // destination IP address to forward the UDP packets to
+         int destPort; // destination port number for the UDP packets
+         volatile double delay @unit(s) = default(0s); // specifies delay per UDP packets
+diff --git a/src/devices/DetCom.ned b/src/devices/DetCom.ned
+index e941123..9bd953d 100644
+--- a/src/devices/DetCom.ned
++++ b/src/devices/DetCom.ned
+@@ -42,7 +42,8 @@ module DetCom
+             @display("p=550,100;");
+         }
+     connections:
+-        nwttg <--> nwtt.ethg++;
++	nwttg <--> nwtt.ethg++;
++
+         for i=0..sizeof(dsttg)-1 {
+             dsttg[i] <--> dstt[i].ethg++;
+             dstt[i].ttg++ <--> TTChannel <--> nwtt.ttg++;
+diff --git a/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.cc b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.cc
+new file mode 100644
+index 0000000..a750522
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.cc
+@@ -0,0 +1,13 @@
++#include "EmergencyBackPressureBasedFilter.h"
++
++namespace d6g {
++
++Define_Module(EmergencyBackPressureBasedFilter);
++
++bool EmergencyBackPressureBasedFilter::canPushPacket(Packet *packet,
++                                                     const cGate *gate) const {
++  return consumer != nullptr &&
++         consumer.canPushPacket(const_cast<Packet *>(packet));
++}
++
++} // namespace d6g
+diff --git a/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.h b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.h
+new file mode 100644
+index 0000000..b2e8d88
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.h
+@@ -0,0 +1,17 @@
++#ifndef DETERMINISTIC6G_EMERGENCY_BACKPRESSURE_BASED_FILTER_H
++#define DETERMINISTIC6G_EMERGENCY_BACKPRESSURE_BASED_FILTER_H
++
++#include "inet/queueing/filter/BackPressureBasedFilter.h"
++
++namespace d6g {
++using namespace inet;
++using namespace inet::queueing;
++
++class EmergencyBackPressureBasedFilter : public BackPressureBasedFilter {
++protected:
++  virtual bool canPushPacket(Packet *packet, const cGate *gate) const;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.ned b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.ned
+new file mode 100644
+index 0000000..a12649e
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyBackPressureBasedFilter.ned
+@@ -0,0 +1,12 @@
++package d6g.devices.emergencyelevation;
++import inet.queueing.filter.BackPressureBasedFilter;
++
++// This module implements a packet filter that drops packets when the following module (consumer)
++// does not allow packets to be pushed. The module itself accepts all packets (i.e. canPushPacket()
++// and canPushSomePacket() always return true). This is useful, for example, when the following
++// module is a gate to filter out packets when the gate is closed.
++simple EmergencyBackPressureBasedFilter extends BackPressureBasedFilter
++{
++    parameters:
++        @class(EmergencyBackPressureBasedFilter);
++}
+diff --git a/src/devices/emergencyelevation/EmergencyIeee8021qFilter.ned b/src/devices/emergencyelevation/EmergencyIeee8021qFilter.ned
+new file mode 100644
+index 0000000..2f51078
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyIeee8021qFilter.ned
+@@ -0,0 +1,67 @@
++package d6g.devices.emergencyelevation;
++
++import inet.queueing.common.BackPressureBarrier;
++import inet.queueing.common.PacketMultiplexer;
++import inet.queueing.contract.IPacketClassifier;
++import inet.queueing.contract.IPacketFilter;
++import inet.queueing.contract.IPacketGate;
++import inet.queueing.contract.IPacketMeter;
++
++module EmergencyIeee8021qFilter like IPacketFilter
++{
++    parameters:
++        int numStreams = default(0); // number of default streams to filter for
++        int numEmergencyStreams = default(0); // number of emergency streams to filter for
++        int startY = default(200);
++        int startEmergencyY = default(200 + 150 * numStreams);
++        @display("i=block/filter");
++    gates:
++        input in;
++        output out;
++    submodules:
++        classifier: <default("EmergencyStreamClassifier")> like IPacketClassifier {
++            gateIndexOffset = 1;
++            defaultGateIndex = 0;
++            @display("p=100,100");
++        }
++        gateFilter[numStreams]: <default("BackPressureBasedFilter")> like IPacketFilter {
++            @display("p=300,$startY,column,150");
++        }
++        gateEmergencyFilter[numEmergencyStreams]: <default("EmergencyBackPressureBasedFilter")> like IPacketFilter {
++            @display("p=300,$startEmergencyY,column,150");
++        }
++        gate[numStreams + numEmergencyStreams]: <default("InteractiveGate")> like IPacketGate {
++            @display("p=500,$startY,column,150");
++        }
++        meter[numStreams + numEmergencyStreams]: <default("DualRateThreeColorMeter")> like IPacketMeter {
++            @display("p=700,$startY,column,150");
++        }
++        filter[numStreams + numEmergencyStreams]: <default("LabelFilter")> like IPacketFilter {
++            labelFilter = default("green");
++            @display("p=900,$startY,column,150");
++        }
++        multiplexer: PacketMultiplexer {
++            @display("p=1100,100");
++        }
++        barrier: BackPressureBarrier {
++            @display("p=1300,100");
++        }
++    connections:
++        in --> { @display("m=w"); } --> classifier.in;
++        classifier.out++ --> multiplexer.in++;
++        for i=0..numStreams-1 {
++            classifier.out++ --> gateFilter[i].in;
++            gateFilter[i].out --> gate[i].in;
++	}
++        for i=0..numEmergencyStreams-1 {
++            classifier.out++ --> gateEmergencyFilter[i].in;
++            gateEmergencyFilter[i].out --> gate[numStreams+i].in;
++	}
++        for i=0..numStreams+numEmergencyStreams-1 {
++            gate[i].out --> meter[i].in;
++            meter[i].out --> filter[i].in;
++            filter[i].out --> multiplexer.in++;
++        }
++        multiplexer.out --> barrier.in;
++        barrier.out --> { @display("m=e"); } --> out;
++}
+diff --git a/src/devices/emergencyelevation/EmergencyStreamClassifier.cc b/src/devices/emergencyelevation/EmergencyStreamClassifier.cc
+new file mode 100644
+index 0000000..8971703
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyStreamClassifier.cc
+@@ -0,0 +1,106 @@
++#include "EmergencyStreamClassifier.h"
++#include "inet/linklayer/common/PcpTag_m.h"
++#include "inet/protocolelement/redundancy/StreamTag_m.h"
++#include "inet/queueing/contract/IPacketFilter.h"
++
++namespace d6g {
++
++Define_Module(EmergencyStreamClassifier);
++
++void EmergencyStreamClassifier::initialize(int stage) {
++  StreamClassifier::initialize(stage);
++  if (stage == INITSTAGE_LOCAL) {
++    emergencyMapping =
++        check_and_cast<cValueMap *>(par("emergencyMapping").objectValue());
++    emergencyAllowedFrameLoss = check_and_cast<cValueMap *>(
++        par("emergencyAllowedFrameLoss").objectValue());
++    defaultPcpMapping =
++        check_and_cast<cValueMap *>(par("defaultPcpMapping").objectValue());
++    emergencyPcp = par("emergencyPcp");
++
++    for (auto &entry : emergencyAllowedFrameLoss->getFields())
++      frameLossCounter[entry.first] = 0;
++  }
++}
++
++int EmergencyStreamClassifier::classifyPacket(Packet *packet) {
++  // keep default functionality for non-emergency-traffic-enabled frames
++  int outputGateIndex = StreamClassifier::classifyPacket(packet);
++  if (outputGateIndex != defaultGateIndex) {
++    return outputGateIndex;
++  }
++
++  // get streamName, as in StreamClassifier::classifyPacket
++  const char *streamName = nullptr;
++  switch (*mode) {
++  case 'r': {
++    auto streamReq = packet->findTag<StreamReq>();
++    if (streamReq != nullptr)
++      streamName = streamReq->getStreamName();
++    break;
++  }
++  case 'i': {
++    auto streamInd = packet->findTag<StreamInd>();
++    if (streamInd != nullptr)
++      streamName = streamInd->getStreamName();
++    break;
++  }
++  case 'b': {
++    auto streamReq = packet->findTag<StreamReq>();
++    if (streamReq != nullptr)
++      streamName = streamReq->getStreamName();
++    else {
++      auto streamInd = packet->findTag<StreamInd>();
++      if (streamInd != nullptr)
++        streamName = streamInd->getStreamName();
++    }
++    break;
++  }
++  }
++
++  if (streamName != nullptr && emergencyMapping->containsKey(streamName)) {
++    int outputGateIndex =
++        emergencyMapping->get(streamName).intValue() + gateIndexOffset;
++    std::string emergencyGateIndex =
++        std::to_string(outputGateIndex - gateIndexOffset);
++    int &frameLoss = frameLossCounter[emergencyGateIndex];
++    int frameLossLimit =
++        emergencyAllowedFrameLoss->get(emergencyGateIndex.c_str()).intValue();
++
++    if (packet->findTag<PcpInd>() != nullptr) {
++      auto pcpInd = packet->getTagForUpdate<PcpInd>();
++      if (consumers[outputGateIndex].canPushPacket(packet)) {
++        if (pcpInd->getPcp() == emergencyPcp &&
++            defaultPcpMapping->containsKey(emergencyGateIndex.c_str())) {
++          EV << "Emergency frame did catch and can be downgraded" << endl;
++          int defaultPcp =
++              defaultPcpMapping->get(emergencyGateIndex.c_str()).intValue();
++          pcpInd->setPcp(defaultPcp);
++        }
++      } else if (pcpInd->getPcp() == emergencyPcp) {
++        EV << "Expedited forwarding of emergency frame" << endl;
++        frameLoss = 0;
++        return defaultGateIndex;
++      } else if (frameLoss == frameLossLimit) {
++        EV << "Elevating packet to emergency traffic" << endl;
++        auto pcpInd = packet->getTagForUpdate<PcpInd>();
++        pcpInd->setPcp(emergencyPcp);
++      }
++    }
++
++    if (consumers[outputGateIndex].canPushPacket(packet)) {
++      frameLoss = 0;
++      return outputGateIndex;
++    } else if (frameLoss < frameLossLimit) {
++      frameLoss++;
++      return outputGateIndex;
++    } else {
++      frameLoss = 0;
++      return defaultGateIndex;
++    }
++  }
++
++  return defaultGateIndex;
++}
++
++} // namespace d6g
+diff --git a/src/devices/emergencyelevation/EmergencyStreamClassifier.h b/src/devices/emergencyelevation/EmergencyStreamClassifier.h
+new file mode 100644
+index 0000000..7927737
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyStreamClassifier.h
+@@ -0,0 +1,25 @@
++#ifndef DETERMINISTIC6G_STREAMCLASSIFIER_H
++#define DETERMINISTIC6G_STREAMCLASSIFIER_H
++
++#include "inet/protocolelement/redundancy/StreamClassifier.h"
++
++namespace d6g {
++using namespace inet;
++
++class INET_API EmergencyStreamClassifier : public StreamClassifier {
++protected:
++  cValueMap *emergencyMapping = nullptr;
++  cValueMap *emergencyAllowedFrameLoss = nullptr;
++  cValueMap *defaultPcpMapping = nullptr;
++  int emergencyPcp = 0;
++
++  std::map<std::basic_string<char>, int> frameLossCounter;
++
++protected:
++  virtual void initialize(int stage) override;
++  virtual int classifyPacket(Packet *packet) override;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/devices/emergencyelevation/EmergencyStreamClassifier.ned b/src/devices/emergencyelevation/EmergencyStreamClassifier.ned
+new file mode 100644
+index 0000000..59de5a6
+--- /dev/null
++++ b/src/devices/emergencyelevation/EmergencyStreamClassifier.ned
+@@ -0,0 +1,12 @@
++package d6g.devices.emergencyelevation;
++import inet.protocolelement.redundancy.StreamClassifier;
++
++simple EmergencyStreamClassifier extends StreamClassifier
++{
++    parameters:
++        object emergencyMapping = default({}); // maps stream name to gate index
++        object emergencyAllowedFrameLoss = default({}); // allowed frame loss per gate
++        object defaultPcpMapping = default({}); // default PCP values of emergency streams
++	int emergencyPcp = default(7); // PCP value of emergency traffic
++        @class(EmergencyStreamClassifier);
++}
+diff --git a/src/devices/tsntranslator/TTInterface.ned b/src/devices/tsntranslator/TTInterface.ned
+index 35310fb..1e752af 100644
+--- a/src/devices/tsntranslator/TTInterface.ned
++++ b/src/devices/tsntranslator/TTInterface.ned
+@@ -7,7 +7,7 @@
+ 
+ package d6g.devices.tsntranslator;
+ 
+-import inet.linklayer.ethernet.LayeredEthernetInterface;
++import inet.linklayer.ethernet.modular.LayeredEthernetInterface;
+ import inet.node.tsn.TsnSwitch;
+ import inet.linklayer.contract.IEthernetInterface;
+ 
+diff --git a/src/distribution/histogram/Histogram.cc b/src/distribution/histogram/Histogram.cc
+index d3fd0d3..1040dfc 100644
+--- a/src/distribution/histogram/Histogram.cc
++++ b/src/distribution/histogram/Histogram.cc
+@@ -15,8 +15,6 @@ using namespace inet::xmlutils;
+ 
+ /// Test for D6G
+ Define_Module(Histogram);
+-Histogram::Histogram(){}
+-Histogram::~Histogram(){}
+ void Histogram::initialize(int stage) {
+     // Parse the histogram configuration
+     if (stage == INITSTAGE_LOCAL) {
+diff --git a/src/distribution/histogram/Histogram.h b/src/distribution/histogram/Histogram.h
+index ae57bc9..3c02498 100644
+--- a/src/distribution/histogram/Histogram.h
++++ b/src/distribution/histogram/Histogram.h
+@@ -22,12 +22,12 @@ using namespace inet;
+  * The histogram configuration is provided in the NED file as a parameter.
+  * For more information on the histogram configuration, see the NED doc.
+  */
+-class INET_API Histogram : public cSimpleModule, public IRandomNumberProvider {
++class Histogram : public cSimpleModule, public IRandomNumberProvider {
+     /**
+      * BinEntry is a class that represents a bin in the histogram.
+      */
+ public:
+-    class INET_API BinEntry {
++    class BinEntry {
+     public:
+         explicit BinEntry(cXMLElement *binEntity, cModule *context = nullptr);
+ 
+@@ -36,7 +36,6 @@ public:
+         cValue rightBoundary = INFINITY; ///< Right boundary
+         int count = 0; ///< Count of elements in the bin
+         int accumulatedCount = 0; ///< Accumulated count from beginning of the histogram including this bin
+-        ~BinEntry() = default;
+     };
+ 
+ private:
+@@ -46,8 +45,6 @@ private:
+ protected:
+     void initialize(int stage) override;
+ public:
+-    Histogram();
+-    ~Histogram();
+     void parseHistogramConfig(cXMLElement *histogramEntity);
+ 
+ public:
+diff --git a/src/distribution/histogram/HistogramContainer.h b/src/distribution/histogram/HistogramContainer.h
+index 544cf7a..e2b2126 100644
+--- a/src/distribution/histogram/HistogramContainer.h
++++ b/src/distribution/histogram/HistogramContainer.h
+@@ -26,7 +26,7 @@ using namespace inet;
+  *
+  * For detailed usage and configuration, refer to the NED doc.
+  */
+-class INET_API HistogramContainer : public cSimpleModule, public IRandomNumberProvider {
++class HistogramContainer : public cSimpleModule, public IRandomNumberProvider {
+ 
+ private:
+     std::map<std::string, Histogram *> histograms; ///< Map associating string keys with Histogram instances.
+diff --git a/src/networks/DetComNetworkBase.ned b/src/networks/DetComNetworkBase.ned
+index 0393a6d..e301429 100644
+--- a/src/networks/DetComNetworkBase.ned
++++ b/src/networks/DetComNetworkBase.ned
+@@ -29,5 +29,5 @@ network DetComNetworkBase extends TsnNetworkBase
+ 		**.hasIncomingStreams = true; // Specifying that all nodes in the network have incoming streams.
+ 		
+ 		
+-		**.eth[*].macLayer.queue.numTrafficClasses = 2; // Specifying the number of traffic classes at the MAC layer for all Ethernet interfaces.
+-}
+\ No newline at end of file
++		**.eth[*].macLayer.queue.numTrafficClasses = default(2); // Specifying the number of traffic classes at the MAC layer for all Ethernet interfaces.
++}

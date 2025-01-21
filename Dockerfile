@@ -12,6 +12,7 @@ COPY ./python_requirements.txt /usr/src/python_requirements.txt
 RUN pip install -Ur /usr/src/python_requirements.txt
 
 COPY ./scripts/docker/install_omnetpp.sh /usr/src/install_omnetpp.sh
+COPY ./scripts/docker/patch.diff /usr/src/patch.diff
 RUN ./install_omnetpp.sh
 
 CMD ["/bin/bash"]

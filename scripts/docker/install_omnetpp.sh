@@ -8,7 +8,7 @@ fi
 printf "\n=== Check dependencies ===\n"
 
 version="6.0.3"
-inet_version="4.5.3"
+inet_version="0ad527bc2b0482c02c263d78a0169ba1c85c5f77"
 
 # Function to check if a package is installed
 is_package_installed() {
@@ -194,6 +194,7 @@ install_d6g() (
       exit 1
   fi
   cd "deterministic6g" || exit 1
+  git apply /usr/src/patch.diff
 
   if ! make makefiles; then
       echo "Failed to generate makefiles. Exiting."
@@ -209,14 +210,16 @@ install_inet() (
   echo "Installing INET..."
   cd "$workspace_path" || exit 1
 
-  if ! git clone --branch v$inet_version https://github.com/inet-framework/inet.git; then
+  if ! git clone https://github.com/inet-framework/inet.git; then
       echo "Failed cloning INET repository. Exiting."
       exit 1
   fi
 
+  # inet has some strange behavior with PSFP, use a commit that works
   cd "inet" || exit 1
-  opp_featuretool disable VoipStream
-  opp_featuretool disable Z3GateSchedulingConfigurator
+  git checkout ${inet_version}
+  opp_featuretool disable -f VoipStream
+  opp_featuretool disable -f Z3GateSchedulingConfigurator
 
   if ! source setenv; then
       echo "Failed to set environment variables. Exiting."

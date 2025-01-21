@@ -251,7 +251,7 @@ psfp_ini_header = """
 **.bridging.streamFilter.ingress.meter[*].committedBurstSize = 10kB
 **.bridging.streamFilter.ingress.gate[*].initiallyOpen = false
 **.bridging.streamFilter.ingress.gate[*].typename = "PeriodicGate"
-# **.bridging.streamFilter.ingress.typename = "EmergencyIeee8021qFilter"
+**.bridging.streamFilter.ingress.typename = "EmergencyIeee8021qFilter"
 
 """
 
