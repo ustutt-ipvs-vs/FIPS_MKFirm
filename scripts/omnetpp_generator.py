@@ -170,8 +170,8 @@ sim-time-limit = {sim_time}s
 description = {network}
 
 *.histogramContainer.histograms = {{
-    Uplink: "{prefix}/../../deterministic6g_data/PD-Wireless-5G-2a/uplink_0.xml", 
-    Downlink: "{prefix}/../../deterministic6g_data/PD-Wireless-5G-2a/downlink_0.xml"}}
+    Uplink: "{prefix}/uplink.xml", 
+    Downlink: "{prefix}/downlink.xml"}}
 *.detcom*.**.delayDownlink = rngProvider("histogramContainer","Downlink")
 *.detcom*.**.delayUplink = rngProvider("histogramContainer","Uplink")
 
@@ -288,6 +288,7 @@ def build_ini_file(
     package,
     network_name,
     sim_time,
+    histogram_directory,
 ):
     global PORT
 
@@ -297,7 +298,7 @@ def build_ini_file(
         package=package,
         network=network_name,
         sim_time=sim_time,
-        prefix="/".join(".." for d in package.split(".")),
+        prefix=histogram_directory,
     )
 
     ini_links = ""
@@ -560,6 +561,11 @@ def main(raw_args=None):
     parser.add_argument("--network_name", default="TestNetwork")
     parser.add_argument("--scenario", default="General")
     parser.add_argument("--simulation_time", type=int, default=10, help="in seconds")
+    parser.add_argument(
+        "--histogram_directory",
+        default=".",
+        help="location (relative to ini file) of histograms",
+    )
 
     args = parser.parse_args(raw_args)
 
@@ -580,6 +586,7 @@ def main(raw_args=None):
         args.package_name,
         args.network_name,
         args.simulation_time,
+        args.histogram_directory,
     )
 
 

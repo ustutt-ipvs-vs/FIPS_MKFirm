@@ -22,7 +22,7 @@ SIM_TIME = 20  # 20s = 1000 hypercycles
 
 PACKAGE_NAME = "agv"
 D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
-INET_PATH = "/usr/src/omnetpp/workspace//inet"
+INET_PATH = "/usr/src/omnetpp/workspace/inet"
 
 SIMULATIONS = ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]
 STREAM_TO_APPS = {t: {} for t in SIMULATIONS}
@@ -75,6 +75,8 @@ def generate_omnetini(t=""):
         "AGVNetwork",
         "--simulation_time",
         str(SIM_TIME),
+        "--histogram_directory",
+        "histograms",
     ]
     omnetpp_generator(args)
 
@@ -133,6 +135,11 @@ def generate_full_omnetini():
     strip_psfp("SCALAR_MAX")
     if not os.path.exists(f"{D6G_PATH}/simulations/{PACKAGE_NAME}"):
         os.mkdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
+    shutil.copytree(
+        "data/histograms",
+        f"{D6G_PATH}/simulations/{PACKAGE_NAME}/histograms",
+        dirs_exist_ok=True,
+    )
     for t in ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]:
         generate_omnetini(t)
         STREAM_TO_APPS[t] = STREAM_TO_MODULE_MAP.copy()
