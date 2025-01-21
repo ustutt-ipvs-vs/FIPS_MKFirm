@@ -4,6 +4,7 @@ import subprocess
 import shutil
 import os
 import json
+import itertools
 import math
 import sys
 import pandas as pd
@@ -18,7 +19,8 @@ RELIABILITY = 0.9999
 JITTER = 100000
 
 REPETITIONS = 100
-SIM_TIME = 20  # 20s = 1000 hypercycles
+SIM_TIME = 1  # 20s = 1000 hypercycles
+SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
 
 PACKAGE_NAME = "agv"
 D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
@@ -75,6 +77,8 @@ def generate_omnetini(t=""):
         "AGVNetwork",
         "--simulation_time",
         str(SIM_TIME),
+        "--repetitions",
+        str(REPETITIONS),
         "--histogram_directory",
         "histograms",
     ]
@@ -158,9 +162,9 @@ def run_simulation():
     talker_offset = {t: get_talker_offsets(t) for t in SIMULATIONS}
 
     os.chdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
-    for r in range(REPETITIONS):
+    for repetition in range(int(REPETITIONS / SIM_BATCHES)):
         handles = []
-        for t in SIMULATIONS:
+        for t, r1 in itertools.product(SIMULATIONS, range(SIM_BATCHES)):
             handles.append(
                 # ../../src/deterministic6g -u Cmdenv -m -r ${i} -c ${s} -n ${d6g_path}/simulations:${d6g_path}/src:${inet_path}/src -l ${inet_path}/src/INET omnetpp.ini
                 subprocess.Popen(
@@ -170,7 +174,7 @@ def run_simulation():
                         "Cmdenv",
                         "-m",
                         "-r",
-                        str(r),
+                        str(repetition * SIM_BATCHES + r1),
                         "-c",
                         t,
                         "-n",
@@ -186,8 +190,11 @@ def run_simulation():
         for handle in handles:
             handle.communicate()
 
-        for t in SIMULATIONS:
-            result_files = [f"results/{t}-*.vec", f"results/{t}-*.sca"]
+        for t, r1 in itertools.product(SIMULATIONS, range(SIM_BATCHES)):
+            result_files = [
+                f"results/{t}-#{repetition * SIM_BATCHES + r1}.vec",
+                f"results/{t}-#{repetition * SIM_BATCHES + r1}.sca",
+            ]
             r = results.read_result_files(
                 result_files, "name =~ meanBitLifeTimePerPacket:vector"
             )
@@ -230,6 +237,8 @@ def run_simulation():
 
             print("\n", t, "\n", "-" * 50)
             print(pd.DataFrame(data=res[t]).to_string())
+
+        shutil.rmtree("results")
 
 
 if __name__ == "__main__":

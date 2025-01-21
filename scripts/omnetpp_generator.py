@@ -168,6 +168,7 @@ omnetpp_ini_header = """[{scenario}]
 network = d6g.simulations.{package}.{network}
 sim-time-limit = {sim_time}s
 description = {network}
+repeat = {repetitions}
 
 *.histogramContainer.histograms = {{
     Uplink: "{prefix}/uplink.xml", 
@@ -250,7 +251,7 @@ psfp_ini_header = """
 **.bridging.streamFilter.ingress.meter[*].committedBurstSize = 10kB
 **.bridging.streamFilter.ingress.gate[*].initiallyOpen = false
 **.bridging.streamFilter.ingress.gate[*].typename = "PeriodicGate"
-**.bridging.streamFilter.ingress.typename = "EmergencyIeee8021qFilter"
+# **.bridging.streamFilter.ingress.typename = "EmergencyIeee8021qFilter"
 
 """
 
@@ -288,6 +289,7 @@ def build_ini_file(
     package,
     network_name,
     sim_time,
+    repetitions,
     histogram_directory,
 ):
     global PORT
@@ -299,6 +301,7 @@ def build_ini_file(
         network=network_name,
         sim_time=sim_time,
         prefix=histogram_directory,
+        repetitions=repetitions,
     )
 
     ini_links = ""
@@ -409,7 +412,7 @@ def build_ini_file(
                 gcl=", ".join([f"{round(d / 1e6, 6)}ms" for d in durations]),
                 exact_transmissions=", ".join(
                     [
-                        f"{{{", ".join(streams)}}}: {start/1e6}ms"
+                        f"{{{', '.join(streams)}}}: {start/1e6}ms"
                         for start, streams in exact_transmissions.items()
                     ]
                 ),
@@ -561,6 +564,7 @@ def main(raw_args=None):
     parser.add_argument("--network_name", default="TestNetwork")
     parser.add_argument("--scenario", default="General")
     parser.add_argument("--simulation_time", type=int, default=10, help="in seconds")
+    parser.add_argument("--repetitions", type=int, default=1, help="repetitions")
     parser.add_argument(
         "--histogram_directory",
         default=".",
@@ -586,6 +590,7 @@ def main(raw_args=None):
         args.package_name,
         args.network_name,
         args.simulation_time,
+        args.repetitions,
         args.histogram_directory,
     )
 
