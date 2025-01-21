@@ -69,19 +69,6 @@ index b4e908f..0000000
 -}
 -
 -} //namespace
-diff --git a/src/apps/edgecloud/UdpEdgeCloudApp.h b/src/apps/edgecloud/UdpEdgeCloudApp.h
-index 573cfe8..192c79f 100644
---- a/src/apps/edgecloud/UdpEdgeCloudApp.h
-+++ b/src/apps/edgecloud/UdpEdgeCloudApp.h
-@@ -19,7 +19,7 @@ namespace d6g {
-  * UDPEdgeCloudApp is based on the UdpEchoApp. It is used to forward packets to another node (or back) and delay them.
-  * See the NED file for more info.
-  */
--class INET_API UdpEdgeCloudApp : public UdpEchoApp {
-+class UdpEdgeCloudApp : public UdpEchoApp {
- protected:
-     virtual void socketDataArrived(UdpSocket *socket, Packet *packet) override;
-     virtual void handleStartOperation(LifecycleOperation *operation) override;
 diff --git a/src/apps/edgecloud/UdpEdgeCloudBasicApp.cc b/src/apps/edgecloud/UdpEdgeCloudBasicApp.cc
 new file mode 100644
 index 0000000..259cbf6
@@ -700,68 +687,6 @@ index 35310fb..1e752af 100644
  import inet.node.tsn.TsnSwitch;
  import inet.linklayer.contract.IEthernetInterface;
  
-diff --git a/src/distribution/histogram/Histogram.cc b/src/distribution/histogram/Histogram.cc
-index d3fd0d3..1040dfc 100644
---- a/src/distribution/histogram/Histogram.cc
-+++ b/src/distribution/histogram/Histogram.cc
-@@ -15,8 +15,6 @@ using namespace inet::xmlutils;
- 
- /// Test for D6G
- Define_Module(Histogram);
--Histogram::Histogram(){}
--Histogram::~Histogram(){}
- void Histogram::initialize(int stage) {
-     // Parse the histogram configuration
-     if (stage == INITSTAGE_LOCAL) {
-diff --git a/src/distribution/histogram/Histogram.h b/src/distribution/histogram/Histogram.h
-index ae57bc9..3c02498 100644
---- a/src/distribution/histogram/Histogram.h
-+++ b/src/distribution/histogram/Histogram.h
-@@ -22,12 +22,12 @@ using namespace inet;
-  * The histogram configuration is provided in the NED file as a parameter.
-  * For more information on the histogram configuration, see the NED doc.
-  */
--class INET_API Histogram : public cSimpleModule, public IRandomNumberProvider {
-+class Histogram : public cSimpleModule, public IRandomNumberProvider {
-     /**
-      * BinEntry is a class that represents a bin in the histogram.
-      */
- public:
--    class INET_API BinEntry {
-+    class BinEntry {
-     public:
-         explicit BinEntry(cXMLElement *binEntity, cModule *context = nullptr);
- 
-@@ -36,7 +36,6 @@ public:
-         cValue rightBoundary = INFINITY; ///< Right boundary
-         int count = 0; ///< Count of elements in the bin
-         int accumulatedCount = 0; ///< Accumulated count from beginning of the histogram including this bin
--        ~BinEntry() = default;
-     };
- 
- private:
-@@ -46,8 +45,6 @@ private:
- protected:
-     void initialize(int stage) override;
- public:
--    Histogram();
--    ~Histogram();
-     void parseHistogramConfig(cXMLElement *histogramEntity);
- 
- public:
-diff --git a/src/distribution/histogram/HistogramContainer.h b/src/distribution/histogram/HistogramContainer.h
-index 544cf7a..e2b2126 100644
---- a/src/distribution/histogram/HistogramContainer.h
-+++ b/src/distribution/histogram/HistogramContainer.h
-@@ -26,7 +26,7 @@ using namespace inet;
-  *
-  * For detailed usage and configuration, refer to the NED doc.
-  */
--class INET_API HistogramContainer : public cSimpleModule, public IRandomNumberProvider {
-+class HistogramContainer : public cSimpleModule, public IRandomNumberProvider {
- 
- private:
-     std::map<std::string, Histogram *> histograms; ///< Map associating string keys with Histogram instances.
 diff --git a/src/networks/DetComNetworkBase.ned b/src/networks/DetComNetworkBase.ned
 index 0393a6d..e301429 100644
 --- a/src/networks/DetComNetworkBase.ned
