@@ -36,11 +36,13 @@ struct PSFPGate {
 using GCLConfiguration = std::map<std::pair<Link, PCPValue>, PeriodicGate>;
 using PSFPConfiguration = std::map<DeviceId, std::deque<PSFPGate>>;
 using TalkerConfiguration = std::map<Frame, Delay>;
+using ListenerConfiguration = std::map<Frame, DelayInterval>;
 
 struct TSNConfiguration {
   GCLConfiguration gcl_config;
   PSFPConfiguration psfp_config;
   TalkerConfiguration talker_config;
+  ListenerConfiguration listener_config;
 
   TSNConfiguration() = default;
   explicit TSNConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
@@ -69,6 +71,7 @@ private:
   nlohmann::json meta_data_;
 
   void add_talker_entry(const TransmissionOperation &op) noexcept;
+  void add_listener_entry(const TransmissionOperation &op) noexcept;
   void add_gcl_entry(const TransmissionOperation &op) noexcept;
   void add_psfp_entries(const TransmissionOperation &op) noexcept;
 };

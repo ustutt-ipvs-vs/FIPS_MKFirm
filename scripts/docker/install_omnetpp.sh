@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "${INSTALL_OMNETPP}" != "true" ]
+then
+  exit 0
+fi
+
 printf "\n=== Check dependencies ===\n"
 
 version="6.0.3"

@@ -63,6 +63,9 @@ constexpr auto TSNConfiguration::visitor_finish_vertex(auto visitor) noexcept ->
   if (std::ranges::find(v.route_pred, &processing_order_->src()) != v.route_pred.end()) {
     add_talker_entry(v);
   }
+  if (std::ranges::find(v.route_succ, &processing_order_->sink()) != v.route_succ.end()) {
+    add_listener_entry(v);
+  }
   add_gcl_entry(v);
   add_psfp_entries(v);
 
@@ -74,6 +77,17 @@ void TSNConfiguration::add_talker_entry(const TransmissionOperation &op) noexcep
   for (auto frame : op.frames) {
     if (frame.stream->route[device].is_talker()) {
       talker_config[frame] = critical_path_[op.id].cost;
+    }
+  }
+}
+
+void TSNConfiguration::add_listener_entry(const TransmissionOperation &op) noexcept {
+  DeviceId const device = op.link().target;
+  for (auto frame : op.frames) {
+    if (frame.stream->route[device].is_listener()) {
+      Delay d_min = frame.stream->pdb_map.at(op.link()).d_total.min;
+      Delay d_max = op.weights.pdb.d_total.max;
+      listener_config[frame] = DelayInterval(d_min, d_max) + critical_path_[op.id].cost;
     }
   }
 }
@@ -101,11 +115,10 @@ void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcep
 }
 
 [[nodiscard]] auto TSNConfiguration::dump_to_json() const -> nlohmann::json {
-  nlohmann::json j = {{"EXACT", nlohmann::json::object()},
-                      {"TALKERS", nlohmann::json::object()},
-                      {"GCL", nlohmann::json::object()},
-                      {"PSFP", nlohmann::json::object()},
-                      {"META", meta_data_}};
+  nlohmann::json j = {
+      {"EXACT", nlohmann::json::object()},     {"TALKERS", nlohmann::json::object()},
+      {"LISTENERS", nlohmann::json::object()}, {"GCL", nlohmann::json::object()},
+      {"PSFP", nlohmann::json::object()},      {"META", meta_data_}};
 
   // Exact transmission offsets at each hop
   for (auto frame : std::views::keys(talker_config)) {
@@ -118,6 +131,11 @@ void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcep
   // Exact transmission offset at talkers
   for (const auto &[frame, tx_time] : talker_config) {
     j["TALKERS"][frame.name()] = tx_time;
+  }
+
+  // Arrival interval at listeners
+  for (const auto &[frame, arrival_interval] : listener_config) {
+    j["LISTENERS"][frame.name()] = {arrival_interval.min, arrival_interval.max};
   }
 
   // Gate Control Lists

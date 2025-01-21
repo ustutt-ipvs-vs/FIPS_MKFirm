@@ -12,10 +12,11 @@ RTI_POLICIES = {
 }  # chose "minimize_dmax" iff using emergency traffic
 
 STREAM_OBJECTIVES = {
-    "lateness": 0,
-    "tardiness": 1,
-    "jitter": 2,
-    "tardiness_and_jitter": 3,
+    "no_objective": 0,
+    "lateness": 1,
+    "tardiness": 2,
+    "jitter": 3,
+    "tardiness_and_jitter": 4,
 }
 
 DATA_RATE = 100000000  # 100Mbps

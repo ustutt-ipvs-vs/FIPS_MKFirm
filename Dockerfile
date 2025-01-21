@@ -11,10 +11,7 @@ ENV PATH="/venv/bin:$PATH"
 COPY ./python_requirements.txt /usr/src/python_requirements.txt
 RUN pip install -Ur /usr/src/python_requirements.txt
 
-COPY ./scripts/install_omnetpp.sh /usr/src/install_omnetpp.sh
-RUN if [ ${INSTALL_OMNETPP} == "true" ]; \
-  then; \
-    ./scripts/install_omnetpp.sh; \
-  fi
+COPY ./scripts/docker/install_omnetpp.sh /usr/src/install_omnetpp.sh
+RUN ./install_omnetpp.sh
 
 CMD ["/bin/bash"]

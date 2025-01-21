@@ -3,11 +3,11 @@ import math
 import random
 import json
 
-PORT = 2000
 
 OMNETPP_NED_MIN_POS = 200
 OMNETPP_NED_MAX_POS = 1000
 
+PORT = 2000
 DETCOM = 0
 
 omnetpp_ned_header = """package d6g.simulations.{package};
@@ -274,6 +274,8 @@ psfp_emergency_ini = """*.{device}.bridging.streamFilter.ingress.numEmergencyStr
 {gates}
 """
 
+STREAM_TO_MODULE_MAP = {}
+
 
 def build_ini_file(
     tsn_config,
@@ -311,12 +313,17 @@ def build_ini_file(
     ini_tt_streams = ""
     for stream in streams:
         stream["ports"] = []
+        STREAM_TO_MODULE_MAP[stream["name"]] = []
         for frame in range(int(1e6 * hyper_period / stream["period"])):
             if f"{stream['name']}#{frame}" not in tsn_config["TALKERS"]:
                 break
 
             stream["source"] = stream["route"][0][0]
             stream["target"] = stream["route"][-1][1]
+            STREAM_TO_MODULE_MAP[stream["name"]].append(
+                f"{network_name}.{device_map[stream['target']]['name']}.app[{device_map[stream['target']]['app']}].sink"
+            )
+
             ini_tt_streams += tt_stream_ini.format(
                 talker=device_map[stream["source"]]["name"],
                 listener=device_map[stream["target"]]["name"],
@@ -529,7 +536,17 @@ def build_ini_file(
         f.write(ini)
 
 
-def main():
+def main(raw_args=None):
+    global OMNETPP_NED_MIN_POS, OMNETPP_NED_MAX_POS, PORT, DETCOM
+
+    STREAM_TO_MODULE_MAP = {}
+
+    OMNETPP_NED_MIN_POS = 200
+    OMNETPP_NED_MAX_POS = 1000
+
+    PORT = 2000
+    DETCOM = 0
+
     parser = argparse.ArgumentParser(
         prog="Omnetpp Builder",
         description="Converts the Scheduler's Output in Omnetpp NED and INI files",
@@ -544,7 +561,7 @@ def main():
     parser.add_argument("--scenario", default="General")
     parser.add_argument("--simulation_time", type=int, default=10, help="in seconds")
 
-    args = parser.parse_args()
+    args = parser.parse_args(raw_args)
 
     topology = parse_json_file(args.topology_input)
     device_map, link_map = build_network_description_file(
