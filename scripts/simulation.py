@@ -12,14 +12,15 @@ from omnetpp.scave import results
 
 AGV_WT_OUT = 50
 AGV_WT_IN = 50
-AGV_CT = 15
-CORE_CT = 15
+AGV_CT = 5
+CORE_CT = 5
 
-RELIABILITY = 0.9999
+LOW_RELIABILITY = 0.5
+HIGH_RELIABILITY = 0.9999
 JITTER = 100000
 
 REPETITIONS = 100
-SIM_TIME = 1  # 20s = 1000 hypercycles
+SIM_TIME = 20  # 20s = 1000 hypercycles
 SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
 
 PACKAGE_NAME = "agv"
@@ -28,6 +29,18 @@ INET_PATH = "/usr/src/omnetpp/workspace/inet"
 
 SIMULATIONS = ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]
 STREAM_TO_APPS = {t: {} for t in SIMULATIONS}
+
+
+def change_reliability(t, stream_names, reliability):
+    with open(f"data/simulations/streams_{t}.json", "r") as f:
+        d = json.load(f)
+
+    for stream in d:
+        if stream["name"] in stream_names:
+            stream["pdb_map"][0]["reliability"] = reliability
+
+    with open(f"data/simulations/streams_{t}.json", "w") as f:
+        json.dump(d, f, indent=4)
 
 
 def build_benchmark(rel: float, jitter=WT_JITTER, pdc=0, name=""):
@@ -108,7 +121,10 @@ def strip_psfp(t=""):
 def generate_full_omnetini():
     if not os.path.exists("data/simulations"):
         os.mkdir("data/simulations")
-    build_benchmark(RELIABILITY, JITTER, 0, "FIPS")
+    build_benchmark(LOW_RELIABILITY, JITTER, 0, "FIPS")
+    change_reliability("FIPS", ["AGV0_CORE_00"], HIGH_RELIABILITY)
+
+    # scalar approaches are unable to configure reliability
     build_benchmark(0.5, JITTER, 0.5, "SCALAR_MEDIAN")
     build_benchmark(1, JITTER, 1, "SCALAR_MAX")
 
@@ -235,10 +251,11 @@ def run_simulation():
                         else:
                             pass
 
+        for t in SIMULATIONS:
             print("\n", t, "\n", "-" * 50)
             print(pd.DataFrame(data=res[t]).to_string())
 
-        shutil.rmtree("results")
+        # shutil.rmtree("results")
 
 
 if __name__ == "__main__":
