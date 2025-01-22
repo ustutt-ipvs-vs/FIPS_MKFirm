@@ -9,6 +9,7 @@ printf "\n=== Check dependencies ===\n"
 
 version="6.0.3"
 inet_version="0ad527bc2b0482c02c263d78a0169ba1c85c5f77"
+d6g_version="01ff699ce335ddc4d81963b0ab64c9671c757a63"
 
 # Function to check if a package is installed
 is_package_installed() {
@@ -194,6 +195,7 @@ install_d6g() (
       exit 1
   fi
   cd "deterministic6g" || exit 1
+  git checkout ${d6g_version}
   git apply /usr/src/patch.diff
 
   if ! make makefiles; then
