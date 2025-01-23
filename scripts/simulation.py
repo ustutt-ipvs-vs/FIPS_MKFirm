@@ -129,11 +129,11 @@ def generate_full_omnetini():
     if not os.path.exists("data/simulations"):
         os.mkdir("data/simulations")
     build_benchmark(LOW_RELIABILITY, JITTER, 0, "FIPS")
-    change_reliability("FIPS", HIGH_CRITICALITY_STREAMS, HIGH_RELIABILITY)
-
-    # scalar approaches are unable to configure reliability
     build_benchmark(0.5, JITTER, 0.5, "SCALAR_MEDIAN")
     build_benchmark(1, JITTER, 1, "SCALAR_MAX")
+
+    for t in SIMULATIONS:
+        change_reliability(t, HIGH_CRITICALITY_STREAMS, HIGH_RELIABILITY)
 
     cwd = os.getcwd()
     os.chdir("release")
