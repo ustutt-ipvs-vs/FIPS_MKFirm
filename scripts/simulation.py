@@ -19,9 +19,13 @@ LOW_RELIABILITY = 0.5
 HIGH_RELIABILITY = 0.9999
 JITTER = 100000
 
-REPETITIONS = 100
+REPETITIONS = 1000
 SIM_TIME = 20  # 20s = 1000 hypercycles
 SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
+
+HIGH_CRITICALITY_STREAMS = [f"AGV0_CORE_0{i}" for i in range(5)] + [
+    f"CORE_AGV0_0{i}" for i in range(5)
+]
 
 PACKAGE_NAME = "agv"
 D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
@@ -44,6 +48,9 @@ def change_reliability(t, stream_names, reliability):
 
 
 def build_benchmark(rel: float, jitter=WT_JITTER, pdc=0, name=""):
+    import agv_network_builder as agv
+
+    agv.WT_PCP = [7]
     args = [
         "-agv_wt_out",
         str(AGV_WT_OUT),
@@ -122,7 +129,7 @@ def generate_full_omnetini():
     if not os.path.exists("data/simulations"):
         os.mkdir("data/simulations")
     build_benchmark(LOW_RELIABILITY, JITTER, 0, "FIPS")
-    change_reliability("FIPS", ["AGV0_CORE_00"], HIGH_RELIABILITY)
+    change_reliability("FIPS", HIGH_CRITICALITY_STREAMS, HIGH_RELIABILITY)
 
     # scalar approaches are unable to configure reliability
     build_benchmark(0.5, JITTER, 0.5, "SCALAR_MEDIAN")
@@ -229,6 +236,9 @@ def run_simulation():
 
             for stream_id, (stream, apps) in enumerate(STREAM_TO_APPS[t].items()):
                 for i, app in enumerate(apps):
+                    if app not in list(df["module"]):
+                        # omnet does not populate list if no frames arrived at all
+                        continue
                     j = list(df["module"]).index(app)
                     arrival_times = df["vecvalue"][j]
                     res[t]["max"][stream_id][i] = round(
@@ -255,7 +265,7 @@ def run_simulation():
             print("\n", t, "\n", "-" * 50)
             print(pd.DataFrame(data=res[t]).to_string())
 
-        # shutil.rmtree("results")
+        shutil.rmtree("results")
 
 
 if __name__ == "__main__":

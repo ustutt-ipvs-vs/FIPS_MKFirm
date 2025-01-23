@@ -2,6 +2,7 @@ import argparse
 import math
 import random
 import json
+from agv_network_builder import device_type
 
 
 OMNETPP_NED_MIN_POS = 200
@@ -91,10 +92,11 @@ def build_network_description_file(topology, ned_output, package, network_name):
         source = device_map[link["source"]]["name"]
         target = device_map[link["target"]]["name"]
         link_map[f"{link['source']}-{link['target']}"] = link
-        if link["source"] > link["target"]:
-            continue
 
         if link["type"] == 0:
+            if link["source"] > link["target"]:
+                continue
+
             ned_links += switch_link.format(
                 source=source,
                 target=target,
@@ -102,6 +104,9 @@ def build_network_description_file(topology, ned_output, package, network_name):
                 delay=link["propagation_delay"],
             )
         else:
+            if device_map[link["source"]]["type"] != device_type["DS_TT"]:
+                continue
+
             ned_nodes += detcom.format(
                 name=f"detcom{DETCOM}",
                 x=(

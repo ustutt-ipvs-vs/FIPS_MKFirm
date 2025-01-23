@@ -51,7 +51,13 @@ offset = 0
 network = {"nodes": [], "links": []}
 streams = []
 
-device_type = {"END_DEVICE": 0, "TSN_BRIDGE": 1, "TSN_TRANSLATOR": 2, "UNSPECIFIED": 3}
+device_type = {
+    "END_DEVICE": 0,
+    "TSN_BRIDGE": 1,
+    "DS_TT": 2,
+    "NW_TT": 3,
+    "UNSPECIFIED": 4,
+}
 
 
 def random_path(size: int, offset: int):
@@ -74,7 +80,7 @@ def build_core(size: int, ct: int, bypass: bool):
         if node == 0:
             xpos = OMNETPP_X
             ypos = OMNETPP_Y
-            node_type = "TSN_TRANSLATOR"
+            node_type = "NW_TT"
         elif node < 2 ** (size - 1) - 1:
             level = math.floor(math.log2(node + 1))
             xpos = OMNETPP_X + 100 * level
@@ -241,7 +247,7 @@ def build_agv(
         if node == 0:
             xpos = OMNETPP_X - 200
             ypos = OMNETPP_Y
-            node_type = "TSN_TRANSLATOR"
+            node_type = "DS_TT"
         elif node < 2 ** (size - 1) - 1:
             level = math.floor(math.log2(node + 1))
             xpos = OMNETPP_X - 100 * (level + 2)

@@ -56,7 +56,7 @@ struct DataLinkProperty : public Link {
   Delay propagation_delay{0};
 };
 
-enum DeviceType : std::uint8_t { END_DEVICE, TSN_BRIDGE, TSN_TRANSLATOR, UNSPECIFIED };
+enum DeviceType : std::uint8_t { END_DEVICE, TSN_BRIDGE, DS_TT, NW_TT, UNSPECIFIED };
 struct DeviceProperty {
   DeviceId id;
   DeviceType type{UNSPECIFIED};
