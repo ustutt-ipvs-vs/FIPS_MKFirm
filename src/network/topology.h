@@ -1,12 +1,12 @@
 #pragma once
 
+#include "nlohmann/json.hpp"
 #include "utils/generator.h"
 #include "utils/interval.h"
 #include <cstddef>
 #include <filesystem>
 #include <generator>
 #include <iostream>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 

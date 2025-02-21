@@ -1,8 +1,8 @@
 #pragma once
 
 #include "histogram.h"
+#include "nlohmann/json.hpp"
 #include "topology.h"
-#include <nlohmann/json.hpp>
 
 namespace tsndgm {
 

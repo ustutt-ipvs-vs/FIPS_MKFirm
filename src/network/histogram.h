@@ -1,9 +1,9 @@
 #pragma once
 
+#include "nlohmann/json.hpp"
 #include "topology.h"
 #include <filesystem>
 #include <fstream>
-#include <nlohmann/json.hpp>
 
 namespace tsndgm {
 
@@ -29,8 +29,8 @@ struct DelayHistogram {
       : DelayHistogram(nlohmann::json::parse(hist_istream)) {};
   explicit DelayHistogram(nlohmann::json hist_data);
 
-  [[nodiscard]] auto compute_pdb(double reliability,
-                                 PDBPolicy policy = MINIMIZE_INTERVAL) const -> DelayInterval;
+  [[nodiscard]] auto compute_pdb(double reliability, PDBPolicy policy = MINIMIZE_INTERVAL) const
+      -> DelayInterval;
   [[nodiscard]] auto compute_reliability(DelayInterval interval) const -> double;
   [[nodiscard]] auto compute_reliability(Count c) const -> double;
 
@@ -69,8 +69,8 @@ struct PacketDelayBudget {
                            FrameSizeRange frame_size) -> PacketDelayBudget;
   static auto wireless_pdb(const DeviceProperty &source, const DeviceProperty &target,
                            FrameSizeRange frame_size, const DelayHistogram &hist,
-                           double reliability,
-                           PDBPolicy policy = MINIMIZE_INTERVAL) -> PacketDelayBudget;
+                           double reliability, PDBPolicy policy = MINIMIZE_INTERVAL)
+      -> PacketDelayBudget;
 
   void merge(const PacketDelayBudget &other);
 };
