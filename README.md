@@ -13,6 +13,8 @@ $ podman -v .:/usr/src/libtsndgm -it libtsndgm
 ```
 
 # Building the Project 
+In case you have trouble building C++23 projects in general, please refer to the [detailed building guide](documentation/build.md).
+
 Build the project (directly or after the above docker setup) with its test cases and benchmarks via:
 ```bash
 $ mkdir release && cd release

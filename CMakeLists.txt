@@ -28,6 +28,7 @@ FetchContent_Declare(json
 FetchContent_MakeAvailable(json)
 
 set(JSON_BuildTests OFF CACHE INTERNAL "")
+#include_directories(${json_SOURCE_DIR}/include)
 
 add_subdirectory(src)
 add_subdirectory(benchmarks)
