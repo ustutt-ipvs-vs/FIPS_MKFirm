@@ -67,8 +67,8 @@ void TSNConfiguration::add_listener_entry(const TransmissionOperation &op) noexc
   DeviceId const device = op.link().target;
   for (auto frame : op.frames) {
     if (frame.stream->route[device].is_listener()) {
-      Delay d_min = frame.stream->pdb_map.at(op.link()).d_total.min;
-      Delay d_max = op.weights.pdb.d_total.max;
+      Delay const d_min = frame.stream->pdb_map.at(op.link()).d_total.min;
+      Delay const d_max = op.weights.pdb.d_total.max;
       listener_config[frame] = DelayInterval(d_min, d_max) + critical_path_[op.id].cost;
     }
   }
