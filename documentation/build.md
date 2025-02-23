@@ -1,3 +1,35 @@
+# Arch Linux
+It does not get much simpler than the following, in case you still needed a reason to switch distros :-)
+1. Install dependencies.
+```bash
+$ pacman -Syu git make cmake python gcc
+```
+2. Build the project. Enter the project directory
+```bash
+$ mkdir release
+$ cd release
+$ cmake ..
+$ make -j
+```
+
+# Ubuntu (Noble Nomat 24.04)
+1. Install dependencies.
+```bash
+$ apt-get update
+$ apt-get install git cmake aptitude python3-venv gcc-14 g++-14
+```
+In case gcc-14/g++-14 are not found, try to add the `universe` repository to the apt sources.
+2. Build the project. Enter the project directory
+```bash
+$ export CC=/usr/bin/gcc-14
+$ export CXX=/usr/bin/g++-14
+$ mkdir release
+$ cd release
+$ cmake ..
+$ make -j
+```
+
+
 # Debian (Bookworm)
 Debian's *stable* distribution is still stuck at gcc-12, which does not support C++23. 
 We experienced similar problems with clang-19, where some std libraries were not fully supported yet. 
