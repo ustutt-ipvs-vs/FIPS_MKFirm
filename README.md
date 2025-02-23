@@ -1,7 +1,18 @@
 # libtsndgm
 
-# Docker/Podman Setup
-This is the recommended way of deployment if you want to reproduce the evaluation results and your compiler does not support C++23.
+# Building the Project 
+In case you have trouble building C++23 projects in general, please refer to the [detailed building guide](documentation/build.md).
+
+## Local Build
+Build the project (directly or after the above docker setup) with its test cases and benchmarks via:
+```bash
+$ mkdir release && cd release
+$ cmake ..
+$ make -j
+```
+
+## Docker/Podman Setup
+This is the recommended way of deployment if you simply want to reproduce the evaluation results and your compiler does not support C++23.
 Start by building the image via:
 ```bash
 $ podman built -t libtsndgm .
@@ -11,16 +22,7 @@ You can then open a shell in the container with
 ```bash
 $ podman -v .:/usr/src/libtsndgm -it libtsndgm
 ```
-
-# Building the Project 
-In case you have trouble building C++23 projects in general, please refer to the [detailed building guide](documentation/build.md).
-
-Build the project (directly or after the above docker setup) with its test cases and benchmarks via:
-```bash
-$ mkdir release && cd release
-$ cmake ..
-$ make -j
-```
+Then, commence with the same commands as with the [Local Build](#markdown-header-local-build).
 
 # Reproduce the Evaluation Results
 ## Scalability results
