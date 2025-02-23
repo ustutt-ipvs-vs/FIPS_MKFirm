@@ -53,8 +53,6 @@ struct TSNConfiguration {
         DFSVisitor::FINISH_VERTEX, [&](auto v) { return this->visitor_finish_vertex(v); })));
   }
 
-  constexpr auto visitor_finish_vertex(auto visitor) noexcept -> TraversalStatus;
-
   template <class T> void add_meta_data(const std::string &name, const T &value) {
     meta_data_[name] = value;
   }
@@ -74,6 +72,24 @@ private:
   void add_listener_entry(const TransmissionOperation &op) noexcept;
   void add_gcl_entry(const TransmissionOperation &op) noexcept;
   void add_psfp_entries(const TransmissionOperation &op) noexcept;
+
+  constexpr auto visitor_finish_vertex(auto visitor) noexcept -> TraversalStatus {
+    const auto &v = *std::get<Vertex *>(visitor);
+    if (v.id <= SINK_ID) {
+      return CONTINUE;
+    }
+
+    if (std::ranges::find(v.route_pred, &processing_order_->src()) != v.route_pred.end()) {
+      add_talker_entry(v);
+    }
+    if (std::ranges::find(v.route_succ, &processing_order_->sink()) != v.route_succ.end()) {
+      add_listener_entry(v);
+    }
+    add_gcl_entry(v);
+    add_psfp_entries(v);
+
+    return CONTINUE;
+  }
 };
 
 } // namespace tsndgm

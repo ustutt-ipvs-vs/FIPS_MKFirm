@@ -54,24 +54,6 @@ TSNConfiguration::TSNConfiguration(DFSTraversal &dfs, const ProcessingOrder &pro
   add_meta_data("makespan", critical_path_[SINK_ID].cost);
 }
 
-constexpr auto TSNConfiguration::visitor_finish_vertex(auto visitor) noexcept -> TraversalStatus {
-  const auto &v = *std::get<Vertex *>(visitor);
-  if (v.id <= SINK_ID) {
-    return CONTINUE;
-  }
-
-  if (std::ranges::find(v.route_pred, &processing_order_->src()) != v.route_pred.end()) {
-    add_talker_entry(v);
-  }
-  if (std::ranges::find(v.route_succ, &processing_order_->sink()) != v.route_succ.end()) {
-    add_listener_entry(v);
-  }
-  add_gcl_entry(v);
-  add_psfp_entries(v);
-
-  return CONTINUE;
-}
-
 void TSNConfiguration::add_talker_entry(const TransmissionOperation &op) noexcept {
   DeviceId const device = op.link().source;
   for (auto frame : op.frames) {
