@@ -19,9 +19,11 @@ void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopolog
     std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
     count += accepted ? 1 : 0;
   }
-  auto tsn_configuration = heuristic.g.derive_tsn_configuration();
-  tsn_configuration.add_meta_data("generated_by", "benchmarks/heuristic.cc");
-  tsn_configuration.dump_to_file(tsn_config_file);
+  if (count > 0) {
+    auto tsn_configuration = heuristic.g.derive_tsn_configuration();
+    tsn_configuration.add_meta_data("generated_by", "benchmarks/heuristic.cc");
+    tsn_configuration.dump_to_file(tsn_config_file);
+  }
   std::println("Scheduled {} streams", count);
 }
 
