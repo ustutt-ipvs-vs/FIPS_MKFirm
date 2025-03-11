@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace tsndgm {
 
@@ -18,7 +19,7 @@ void DelayHistogram::verify_upper_bound() const {
 }
 
 DelayHistogram::DelayHistogram(Histogram histogram, Count size, std::string name)
-    : histogram(std::move(histogram)), size(size), name(std::move(std::move(name))) {
+    : histogram(std::move(histogram)), size(size), name(std::move(name)) {
   verify_upper_bound();
 };
 
@@ -26,7 +27,7 @@ DelayHistogram::DelayHistogram(const Histogram &histogram, std::string name)
     : histogram(histogram),
       size(std::ranges::fold_left(histogram, static_cast<Count>(0),
                                   [](Count c, auto it) { return c + it.second; })),
-      name(std::move(std::move(name))) {
+      name(std::move(name)) {
   verify_upper_bound();
 };
 
@@ -39,13 +40,29 @@ DelayHistogram::DelayHistogram(nlohmann::json hist_data)
       size += histogram[lower_bound];
     }
     if (!bin["upper_bound"].is_null()) {
-      std::string const ub = bin["upper_bound"].template get<std::string>();
-      std::string const delay_str = ub.substr(0, ub.find(' '));
-      lower_bound = static_cast<Delay>(stod(delay_str) * TicksPerMilliSec);
+      std::string ub = bin["upper_bound"].template get<std::string>();
+      lower_bound = parse_delay(ub);
       histogram[lower_bound] = 0;
     }
   }
   verify_upper_bound();
+}
+
+auto DelayHistogram::parse_delay(std::string &delay_str) -> Delay {
+  std::erase(delay_str, ' ');
+  if (auto pos = delay_str.find("ns"); pos != std::string::npos) {
+    return static_cast<Delay>(stod(delay_str.substr(0, pos)));
+  }
+  if (auto pos = delay_str.find("us"); pos != std::string::npos) {
+    return static_cast<Delay>(stod(delay_str.substr(0, pos)) * TicksPerMicroSec);
+  }
+  if (auto pos = delay_str.find("ms"); pos != std::string::npos) {
+    return static_cast<Delay>(stod(delay_str.substr(0, pos)) * TicksPerMilliSec);
+  }
+  if (auto pos = delay_str.find('s'); pos != std::string::npos) {
+    return static_cast<Delay>(stod(delay_str.substr(0, pos)) * TicksPerSec);
+  }
+  throw std::invalid_argument("Invalid unit in histogram bin (must be ns, us, or ms).");
 }
 
 auto DelayHistogram::compute_pdb(double reliability, PDBPolicy policy) const -> DelayInterval {

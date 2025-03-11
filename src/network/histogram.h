@@ -36,6 +36,7 @@ struct DelayHistogram {
 
 private:
   void verify_upper_bound() const;
+  [[nodiscard]] static auto parse_delay(std::string &delay_str) -> Delay;
 };
 
 struct InterFrameGap {
