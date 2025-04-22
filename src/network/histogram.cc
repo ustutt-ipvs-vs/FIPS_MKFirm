@@ -73,6 +73,11 @@ auto DelayHistogram::compute_pdb(double reliability, PDBPolicy policy) const -> 
   if (policy == MINIMIZE_INTERVAL) {
     DelayInterval pdb(0, std::numeric_limits<Delay>::max());
     for (auto min_it = histogram.begin(); min_it != histogram.end(); ++min_it) {
+      // some histograms have an initial bin of -inf, ignore those
+      if (min_it->first < 0) {
+        continue;
+      }
+
       Count c = 0;
       auto max_it = min_it;
       for (; max_it != histogram.end(); ++max_it) {
@@ -89,10 +94,9 @@ auto DelayHistogram::compute_pdb(double reliability, PDBPolicy policy) const -> 
   }
   if (policy == MINIMIZE_DMAX) {
     Count c = 0;
-    Delay const min = histogram.begin()->first;
     for (const auto &bin : histogram) {
       if (compute_reliability(c) >= reliability) {
-        return {min, bin.first};
+        return {0, bin.first};
       }
       c += bin.second;
     }
