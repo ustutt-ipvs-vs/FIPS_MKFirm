@@ -36,6 +36,8 @@ NetworkTopology::NetworkTopology(nlohmann::json &&json) {
         .id = json_device["id"],
         .type = json_device.contains("type") ? DeviceType(json_device["type"]) : UNSPECIFIED,
         .processing_delay = DelayInterval(json_device["processing_delay"]),
+        .clock_resolution =
+            json_get_or_default<>(json_device["clock_resolution"], static_cast<Delay>(1)),
         .name = json_device.contains("name") ? json_device["name"] : "",
     };
     add_device(device);

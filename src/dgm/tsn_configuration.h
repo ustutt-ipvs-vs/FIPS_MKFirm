@@ -2,6 +2,7 @@
 
 #include "critical_path.h"
 #include "network/stream.h"
+#include "network/stream_storage.h"
 #include "network/topology.h"
 #include "transmission_operations.h"
 #include "traversal.h"
@@ -38,18 +39,40 @@ using PSFPConfiguration = std::map<DeviceId, std::deque<PSFPGate>>;
 using TalkerConfiguration = std::map<Frame, Delay>;
 using ListenerConfiguration = std::map<Frame, DelayInterval>;
 
-struct TSNConfiguration {
+struct CriticalPathConfiguration {
+  CriticalPathConfiguration() = default;
+  CriticalPathConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order)
+      : critical_path_(dfs, processing_order) {}
+
+  constexpr auto traversal_events() { return critical_path_.traversal_events(); }
+
+  auto operator[](GlobalOpIndex id) const noexcept -> DelayInterval {
+    return critical_path_[id].cost;
+  }
+
+  [[nodiscard]] static auto dump_to_json(const NetworkTopology * /*topology*/, nlohmann::json &&j)
+      -> nlohmann::json {
+    return j;
+  }
+
+private:
+  CriticalPath critical_path_;
+};
+
+template <typename ConfigurationType> struct TSNConfiguration {
+  TraversalStatus status{ABORT};
   GCLConfiguration gcl_config;
   PSFPConfiguration psfp_config;
   TalkerConfiguration talker_config;
   ListenerConfiguration listener_config;
 
   TSNConfiguration() = default;
-  explicit TSNConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
+  explicit TSNConfiguration(DFSTraversal &dfs, ConfigurationType &&configuration,
+                            const ProcessingOrder &processing_order,
                             const NetworkTopology *topology, Delay hyper_cycle);
 
   constexpr auto traversal_events() {
-    return critical_path_.traversal_events().add(std::make_tuple(std::make_pair(
+    return configuration_.traversal_events().add(std::make_tuple(std::make_pair(
         DFSVisitor::FINISH_VERTEX, [&](auto v) { return this->visitor_finish_vertex(v); })));
   }
 
@@ -62,7 +85,7 @@ struct TSNConfiguration {
 
 private:
   DFSTraversal *dfs_;
-  CriticalPath critical_path_;
+  ConfigurationType configuration_;
   const ProcessingOrder *processing_order_;
   const NetworkTopology *topology_;
   Delay hyper_cycle_;

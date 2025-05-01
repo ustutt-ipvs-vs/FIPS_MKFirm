@@ -44,7 +44,7 @@ auto PrecedenceGraphs::effective_deadline(StreamId id, Link link) noexcept -> De
   auto &g = stream_graphs[id];
   auto op_id = g[link][0]->id;
   const auto &critical_path = *g.critical_path();
-  return stream.e2e_latency - (critical_path[SINK_ID].cost - critical_path[op_id].cost);
+  return stream.stable_qos.e2e_latency - (critical_path[SINK_ID].cost - critical_path[op_id].cost);
 }
 
 } // namespace tsndgm

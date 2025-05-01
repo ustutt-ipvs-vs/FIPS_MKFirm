@@ -14,6 +14,10 @@ template <typename T> auto json_get_or_default(const nlohmann::json &j, T defaul
   return (j.is_null() ? default_value : j.template get<T>());
 }
 
+template <typename T> auto json_get_or_default(const nlohmann::json &j) -> T {
+  return (j.is_null() ? T() : T::load_from_json(j));
+}
+
 namespace tsndgm {
 
 using DeviceId = unsigned int;
@@ -46,6 +50,9 @@ struct Link {
   auto operator<=>(const Link &other) const {
     return source == other.source ? target <=> other.target : source <=> other.source;
   }
+  auto operator==(const Link &other) const -> bool {
+    return source == other.source && target == other.target;
+  }
 };
 
 enum DataLinkType : std::uint8_t { WIRED, WIRELESS };
@@ -61,6 +68,7 @@ struct DeviceProperty {
   DeviceId id;
   DeviceType type{UNSPECIFIED};
   DelayInterval processing_delay{0};
+  Delay clock_resolution{1};
   std::string name;
   std::vector<DataLinkProperty> out;
 

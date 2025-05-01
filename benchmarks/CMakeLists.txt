@@ -3,7 +3,7 @@ FetchContent_Declare(argparse
 )
 FetchContent_MakeAvailable(argparse)
 
-set(BENCHMARKS "heuristic.cc" "jsp.cc")
+set(BENCHMARKS "heuristic.cc" "mk_firm.cc" "jsp.cc")
 
 foreach(source_file ${BENCHMARKS})
   string(REPLACE ".cc" "" benchmark_name ${source_file})

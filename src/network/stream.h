@@ -22,17 +22,38 @@ enum StreamObjective : std::uint8_t {
   TARDINESS_AND_JITTER
 };
 
+struct MKFirmLatencyRequirement {
+  std::vector<bool> mask{false}; // defaults to (0,1)-firm latency requirement
+  Delay e2e_latency{0};
+
+  [[nodiscard]] auto m() const noexcept -> Count {
+    return std::ranges::fold_left(mask, static_cast<Count>(0),
+                                  [](Count c, bool flag) { return c + flag; });
+  }
+  [[nodiscard]] auto k() const noexcept -> Count { return static_cast<Count>(mask.size()); }
+  [[nodiscard]] auto required() const noexcept -> bool { return m() > 0; }
+
+  static auto load_from_json(const nlohmann::json &json) -> MKFirmLatencyRequirement;
+  static auto load_mask(std::string mask) -> std::vector<bool>;
+};
+
+struct StableQoSRequest {
+  StreamObjective objective_type{NO_OBJECTIVE};
+  Delay e2e_latency{0};
+  Delay jitter{0};
+  Probability reliability{0};
+
+  static auto load_from_json(const nlohmann::json &json) -> StableQoSRequest;
+};
+
 struct Stream {
   Route route;
   FrameSizeRange frame_size;
   Delay period;
   Delay phase{0};
-  StreamObjective objective_type{NO_OBJECTIVE};
-  Delay e2e_latency{0};
-  Delay jitter{0};
   PCPValue pcp{DefaultPCP};
-  Probability reliability{0};
-  FrameIndex tolerated_loss{0};
+  MKFirmLatencyRequirement mk_firm;
+  StableQoSRequest stable_qos;
   std::string name;
   PDBMap pdb_map;
 

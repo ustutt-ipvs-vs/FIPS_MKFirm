@@ -43,16 +43,22 @@ struct TransmissionGraph {
   auto operator=(TransmissionGraph &&other) noexcept -> TransmissionGraph &;
 
   auto is_feasible() -> bool;
-  auto derive_tsn_configuration() -> TSNConfiguration;
   auto critical_path(std::optional<GlobalObjective> objective = {}) -> const CriticalPath *;
   void print_critical_path(std::ostream &out = std::cout) const;
   void print_critical_cost(std::ostream &out = std::cout) const;
   template <TraversalDirection D> [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;
 
-  [[nodiscard]] auto
-  equivalence_class(OperationPair pair) const noexcept -> std::deque<OperationPair>;
-  [[nodiscard]] auto
-  related_neighbor_pairs(OperationPair pair) const noexcept -> Generator<OperationPair>;
+  template <typename Configuration = CriticalPathConfiguration>
+  auto derive_tsn_configuration() -> TSNConfiguration<Configuration> {
+    Configuration config(dfs_, processing_order_);
+    return TSNConfiguration<Configuration>(dfs_, std::move(config), processing_order_, topology_,
+                                           stream_storage_->hyper_cycle);
+  }
+
+  [[nodiscard]] auto equivalence_class(OperationPair pair) const noexcept
+      -> std::deque<OperationPair>;
+  [[nodiscard]] auto related_neighbor_pairs(OperationPair pair) const noexcept
+      -> Generator<OperationPair>;
 
   void flip(const FlipInstruction &inst) noexcept;
   void flip(GlobalOpIndex op_id, LinkOpPosition new_pos) noexcept;
@@ -119,17 +125,19 @@ private:
                                     TransmissionOperation *new_op) noexcept;
 
   template <FlipPolicy P>
-  [[nodiscard]] auto
-  adjacent_flips(const TransmissionOperation &first,
-                 const TransmissionOperation &second) const noexcept -> Generator<FlipInstruction>;
+  [[nodiscard]] auto adjacent_flips(const TransmissionOperation &first,
+                                    const TransmissionOperation &second) const noexcept
+      -> Generator<FlipInstruction>;
   template <FlipPolicy P>
-  [[nodiscard]] auto adjacent_flips(const std::vector<TransmissionOperation *> &first,
-                                    const std::vector<TransmissionOperation *> &second)
-      const noexcept -> Generator<FlipInstruction>;
+  [[nodiscard]] auto
+  adjacent_flips(const std::vector<TransmissionOperation *> &first,
+                 const std::vector<TransmissionOperation *> &second) const noexcept
+      -> Generator<FlipInstruction>;
 
-  [[nodiscard]] static auto related_neighbor_pairs(
-      const std::vector<TransmissionOperation *> &first,
-      const std::vector<TransmissionOperation *> &second) noexcept -> Generator<OperationPair>;
+  [[nodiscard]] static auto
+  related_neighbor_pairs(const std::vector<TransmissionOperation *> &first,
+                         const std::vector<TransmissionOperation *> &second) noexcept
+      -> Generator<OperationPair>;
 };
 
 } // namespace tsndgm

@@ -1,6 +1,7 @@
 #include "tsn_configuration.h"
 #include "dgm/transmission_operations.h"
 #include "dgm/traversal.h"
+#include "mk_firm_extension.h"
 #include "network/topology.h"
 #include "nlohmann/json_fwd.hpp"
 #include <algorithm>
@@ -10,6 +11,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <print>
 #include <ranges>
 #include <utility>
 
@@ -40,49 +42,62 @@ void PeriodicGate::extend_to(Delay time) {
   }
 }
 
-TSNConfiguration::TSNConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
-                                   const NetworkTopology *topology, Delay hyper_cycle)
-    : dfs_(&dfs), critical_path_(dfs, processing_order), processing_order_(&processing_order),
+template <typename ConfigurationType>
+TSNConfiguration<ConfigurationType>::TSNConfiguration(DFSTraversal &dfs,
+                                                      ConfigurationType &&configuration,
+                                                      const ProcessingOrder &processing_order,
+                                                      const NetworkTopology *topology,
+                                                      Delay hyper_cycle)
+    : dfs_(&dfs), configuration_(std::move(configuration)), processing_order_(&processing_order),
       topology_(topology), hyper_cycle_(hyper_cycle) {
-  auto status = dfs_->traverse<BACKWARD>(&processing_order.sink(), traversal_events());
+  status = dfs_->traverse<BACKWARD>(&processing_order.sink(), traversal_events());
   if (status != COMPLETED) {
-    *this = TSNConfiguration();
+    *this = TSNConfiguration<ConfigurationType>();
+    return;
   }
+  std::println("completed");
   for (auto &[_, gate] : gcl_config) {
     gate.extend_to(hyper_cycle_);
   }
-  add_meta_data("makespan", critical_path_[SINK_ID].cost);
+  add_meta_data("makespan", configuration_[SINK_ID].max);
 }
 
-void TSNConfiguration::add_talker_entry(const TransmissionOperation &op) noexcept {
+template <typename ConfigurationType>
+void TSNConfiguration<ConfigurationType>::add_talker_entry(
+    const TransmissionOperation &op) noexcept {
   DeviceId const device = op.link().source;
   for (auto frame : op.frames) {
     if (frame.stream->route[device].is_talker()) {
-      talker_config[frame] = critical_path_[op.id].cost;
+      talker_config[frame] = configuration_[op.id].min;
     }
   }
 }
 
-void TSNConfiguration::add_listener_entry(const TransmissionOperation &op) noexcept {
+template <typename ConfigurationType>
+void TSNConfiguration<ConfigurationType>::add_listener_entry(
+    const TransmissionOperation &op) noexcept {
   DeviceId const device = op.link().target;
   for (auto frame : op.frames) {
     if (frame.stream->route[device].is_listener()) {
       Delay const d_min = frame.stream->pdb_map.at(op.link()).d_total.min;
       Delay const d_max = op.weights.pdb.d_total.max;
-      listener_config[frame] = DelayInterval(d_min, d_max) + critical_path_[op.id].cost;
+      listener_config[frame] = DelayInterval(d_min, d_max) + configuration_[op.id];
     }
   }
 }
 
-void TSNConfiguration::add_gcl_entry(const TransmissionOperation &op) noexcept {
-  Delay const opening_time = critical_path_[op.id].cost;
-  Delay const closing_time = opening_time + op.weights.pdb.d_trans.max;
+template <typename ConfigurationType>
+void TSNConfiguration<ConfigurationType>::add_gcl_entry(const TransmissionOperation &op) noexcept {
+  Delay const opening_time = configuration_[op.id].min;
+  Delay const closing_time = configuration_[op.id].max + op.weights.pdb.d_trans.max;
 
   gcl_config[{op.link(), op.pcp}] +=
       PeriodicGateInterval{.opening_time = opening_time, .closing_time = closing_time};
 }
 
-void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcept {
+template <typename ConfigurationType>
+void TSNConfiguration<ConfigurationType>::add_psfp_entries(
+    const TransmissionOperation &op) noexcept {
   DeviceId const device = op.link().target;
   auto d_min = std::ranges::fold_left(
       op.frames, std::numeric_limits<Delay>::max(), [&op](Delay d, auto &frame) {
@@ -91,12 +106,13 @@ void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcep
 
   psfp_config[device].push_back(PSFPGate{
       .frames = op.frames,
-      .open = critical_path_[op.id].cost + d_min,
-      .close = critical_path_[op.id].cost + op.weights.pdb.d_total.max,
+      .open = configuration_[op.id].min + d_min,
+      .close = configuration_[op.id].max + op.weights.pdb.d_total.max,
   });
 }
 
-[[nodiscard]] auto TSNConfiguration::dump_to_json() const -> nlohmann::json {
+template <typename ConfigurationType>
+[[nodiscard]] auto TSNConfiguration<ConfigurationType>::dump_to_json() const -> nlohmann::json {
   nlohmann::json j = {
       {"EXACT", nlohmann::json::object()},     {"TALKERS", nlohmann::json::object()},
       {"LISTENERS", nlohmann::json::object()}, {"GCL", nlohmann::json::object()},
@@ -106,7 +122,8 @@ void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcep
   for (auto frame : std::views::keys(talker_config)) {
     j["EXACT"][frame.name()] = nlohmann::json::object();
     for (const auto *op : processing_order_->traverse_operations(frame)) {
-      j["EXACT"][frame.name()][topology_->link_to_string(op->link())] = critical_path_[op->id].cost;
+      j["EXACT"][frame.name()][topology_->link_to_string(op->link())] = {
+          configuration_[op->id].min, configuration_[op->id].max};
     }
   }
 
@@ -143,13 +160,19 @@ void TSNConfiguration::add_psfp_entries(const TransmissionOperation &op) noexcep
     }
   }
 
+  j = configuration_.dump_to_json(topology_, std::move(j));
+
   return j;
 }
 
-void TSNConfiguration::dump_to_file(const std::filesystem::path &out) const {
+template <typename ConfigurationType>
+void TSNConfiguration<ConfigurationType>::dump_to_file(const std::filesystem::path &out) const {
   auto json = dump_to_json();
   std::ofstream ofstream(out);
   ofstream << std::setw(4) << json;
 }
+
+template struct TSNConfiguration<CriticalPathConfiguration>;
+template struct TSNConfiguration<MKFirmConfiguration>;
 
 } // namespace tsndgm

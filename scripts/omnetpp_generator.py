@@ -175,14 +175,21 @@ sim-time-limit = {sim_time}s
 description = {network}
 repeat = {repetitions}
 
+**.crcMode = "computed"
+**.fcsMode = "computed"
+"""
+
+histograms_ini_header = """
 *.histogramContainer.histograms = {{
     Uplink: "{prefix}/uplink.xml", 
     Downlink: "{prefix}/downlink.xml"}}
 *.detcom*.**.delayDownlink = rngProvider("histogramContainer","Downlink")
 *.detcom*.**.delayUplink = rngProvider("histogramContainer","Uplink")
+"""
 
-**.crcMode = "computed"
-**.fcsMode = "computed"
+random_delay_ini_header = """
+*.detcom*.**.delayDownlink = uniform(0.1ms, 25ms)
+*.detcom*.**.delayUplink = uniform(0.1ms, 25ms)
 """
 
 talker_ini = """
@@ -208,7 +215,7 @@ pcp_ini = """
 """
 
 tt_stream_ini = """
-# Stream {stream}: period {stream_period}ms, deadline {deadline}ms
+# Stream {stream}: period {stream_period}ms
 *.{talker}.app[{talker_app}].typename = "UdpBasicApp"
 *.{talker}.app[{talker_app}].packetName = "{stream}"
 *.{talker}.app[{talker_app}].destAddresses = "{listener}"
@@ -256,8 +263,7 @@ psfp_ini_header = """
 **.bridging.streamFilter.ingress.meter[*].committedBurstSize = 10kB
 **.bridging.streamFilter.ingress.gate[*].initiallyOpen = false
 **.bridging.streamFilter.ingress.gate[*].typename = "PeriodicGate"
-**.bridging.streamFilter.ingress.typename = "EmergencyIeee8021qFilter"
-
+**.bridging.streamFilter.ingress.typename = "{filter_type}"
 """
 
 nts_map = "{{packetFilter: expr(udp.destPort == {dest_port}), stream: '{frame}'}}"
@@ -273,12 +279,9 @@ psfp_ini = """*.{device}.hasIngressTrafficFiltering = true
 *.{device}.bridging.streamFilter.ingress.classifier.mapping = {{{stream_to_gate_mapping}}}
 {gates}"""
 
-psfp_emergency_ini = """*.{device}.bridging.streamFilter.ingress.numEmergencyStreams = {num_streams}
-*.{device}.bridging.streamFilter.ingress.classifier.emergencyMapping = {{{stream_to_gate_mapping}}}
-*.{device}.bridging.streamFilter.ingress.classifier.emergencyAllowedFrameLoss = {{{allowed_frame_loss}}}
-*.{device}.bridging.streamFilter.ingress.classifier.defaultPcpMapping = {{{default_pcp_mapping}}}
-{gates}
-"""
+mkfirm_psfp_ini = """*.{device}.bridging.streamFilter.ingress.numMKFirmStreams = {num_streams}
+*.{device}.bridging.streamFilter.ingress.classifier.mkFirmMapping = {{{stream_to_gate_mapping}}}
+{gates}"""
 
 STREAM_TO_MODULE_MAP = {}
 
@@ -296,6 +299,7 @@ def build_ini_file(
     sim_time,
     repetitions,
     histogram_directory,
+    delay_outliers,
 ):
     global PORT
 
@@ -305,9 +309,12 @@ def build_ini_file(
         package=package,
         network=network_name,
         sim_time=sim_time,
-        prefix=histogram_directory,
         repetitions=repetitions,
     )
+    if delay_outliers:
+        ini += random_delay_ini_header
+    else:
+        ini += histograms_ini_header.format(prefix=histogram_directory)
 
     ini_links = ""
     for link in topology["links"]:
@@ -344,7 +351,6 @@ def build_ini_file(
                 offset=tsn_config["TALKERS"][f"{stream['name']}#{frame}"] / 1e6,
                 stream=stream["name"],
                 stream_period=stream["period"] / 1e6,
-                deadline=stream["e2e_latency"] / 1e6,
             )
 
             device_map[stream["source"]]["identifier_entries"].append(
@@ -402,9 +408,9 @@ def build_ini_file(
             exact_transmissions = {}
             for stream in tsn_config["EXACT"]:
                 if port in tsn_config["EXACT"][stream]:
-                    if tsn_config["EXACT"][stream][port] not in exact_transmissions:
-                        exact_transmissions[tsn_config["EXACT"][stream][port]] = []
-                    exact_transmissions[tsn_config["EXACT"][stream][port]].append(
+                    if tsn_config["EXACT"][stream][port][0] not in exact_transmissions:
+                        exact_transmissions[tsn_config["EXACT"][stream][port][0]] = []
+                    exact_transmissions[tsn_config["EXACT"][stream][port][0]].append(
                         stream
                     )
 
@@ -423,12 +429,17 @@ def build_ini_file(
                 ),
             )
 
-    ini_bridges += psfp_ini_header
+    has_mkfirm_streams = "MK_FIRM_PSFP" in tsn_config
+    ini_bridges += psfp_ini_header.format(
+        filter_type=(
+            "MKFirmIeee8021qFilter" if has_mkfirm_streams else "Ieee8021qFilter"
+        )
+    )
 
     for device in tsn_config["PSFP"]:
 
-        def gates_fmt(id, open, close):
-            offset = 1e6 * hyper_period - close
+        def gates_fmt(id, open, close, period):
+            offset = period - close
             durations = ", ".join(
                 [
                     f"{(offset+open)/1e6}ms",
@@ -439,83 +450,49 @@ def build_ini_file(
                 device=device, id=id, durations=durations, offset=offset / 1e6
             )
 
+        def add_psfp_entry(entry, entry_type, frame):
+            stream_name = frame.split("#")[0]
+            frame_id = int(frame.split("#")[1])
+            stream = [s for s in streams if s["name"] == stream_name][0]
+            frame_id = frame_id % len(stream["ports"])
+            frame = f"{stream_name}-{frame_id}"
+            decoder = nts_map.format(
+                dest_port=stream["ports"][frame_id],
+                frame=frame,
+            )
+            if decoder not in nts:
+                nts.append(decoder)
+            stg[entry_type].append(stg_map.format(frame=frame, id=n))
+            if entry_type == "default":
+                gates[entry_type] += gates_fmt(
+                    n, entry["open"], entry["close"], 1e6 * hyper_period
+                )
+            else:
+                gates[entry_type] += gates_fmt(
+                    n,
+                    entry["open"],
+                    entry["close"],
+                    stream["period"] * len(stream["mk_firm"]["mask"]),
+                )
+
         n = 0
         nts = []
-        fl = []
-        dpm = []
-        stg = {"default": [], "emergency": []}
-        gates = {"default": "", "emergency": ""}
-        use_emergency_traffic = (
-            True
-            if "emergency_traffic" in tsn_config["META"]
-            and tsn_config["META"]["emergency_traffic"]
-            else False
-        )
-        emergency_elevation = []
+        stg = {"default": [], "mk_firm": []}
+        gates = {"default": "", "mk_firm": ""}
 
+        # start with default streams
         for psfp_entry in tsn_config["PSFP"][device]:
-
-            # start with default streams
             for frame in psfp_entry["frames"]:
-                stream_name = frame.split("#")[0]
-                frame_id = int(frame.split("#")[1])
-                stream = [s for s in streams if s["name"] == stream_name][0]
-                link = next(
-                    (i, l)
-                    for i, l in enumerate(stream["route"])
-                    if device_map[l[1]]["name"] == device
-                )
-
-                wireless_links = [
-                    (i, l)
-                    for i, l in enumerate(stream["route"])
-                    if link_map[f"{l[0]}-{l[1]}"]["type"] == 1
-                ]
-                use_emergency_classifier = (
-                    True
-                    if len(wireless_links) > 0 and link[0] >= wireless_links[0][0]
-                    else False
-                )
-                link = link[1]
-
-                if (
-                    use_emergency_traffic
-                    and "frame_loss" in stream
-                    and use_emergency_classifier
-                ):
-                    emergency_elevation.append((psfp_entry, frame))
-                    continue
-
-                nts.append(
-                    nts_map.format(
-                        dest_port=stream["ports"][frame_id],
-                        frame=frame.replace("#", "-"),
-                    )
-                )
-                stg["default"].append(
-                    stg_map.format(frame=frame.replace("#", "-"), id=n)
-                )
-                gates["default"] += gates_fmt(
-                    n, psfp_entry["open"], psfp_entry["close"]
-                )
+                add_psfp_entry(psfp_entry, "default", frame)
                 n += 1
 
+        # add entries for (m,k)-firm streams
         default_streams = n
-        for psfp_entry, frame in emergency_elevation:
-            stream_name = frame.split("#")[0]
-            stream = [s for s in streams if s["name"] == stream_name][0]
-
-            if "frame_loss" not in stream:
-                continue
-
-            nts.append(
-                nts_map.format(dest_port=stream["port"], frame=frame.replace("#", "-"))
-            )
-            stg["emergency"].append(stg_map.format(frame=frame.replace("#", "-"), id=n))
-            fl.append(fl_map.format(id=n, value=stream["frame_loss"]))
-            dpm.append(fl_map.format(id=n, value=stream["pcp"]))
-            gates["emergency"] += gates_fmt(n, psfp_entry["open"], psfp_entry["close"])
-            n += 1
+        if has_mkfirm_streams and device in tsn_config["MK_FIRM_PSFP"]:
+            for mkfirm_psfp_entry in tsn_config["MK_FIRM_PSFP"][device]:
+                for frame in mkfirm_psfp_entry["frames"]:
+                    add_psfp_entry(mkfirm_psfp_entry, "mk_firm", frame)
+                    n += 1
 
         ini_bridges += psfp_ini.format(
             device=device,
@@ -524,13 +501,11 @@ def build_ini_file(
             stream_to_gate_mapping=", ".join(stg["default"]),
             gates=gates["default"],
         )
-        ini_bridges += psfp_emergency_ini.format(
+        ini_bridges += mkfirm_psfp_ini.format(
             device=device,
             num_streams=n - default_streams,
-            stream_to_gate_mapping=", ".join(stg["emergency"]),
-            allowed_frame_loss=", ".join(fl),
-            default_pcp_mapping=", ".join(dpm),
-            gates=gates["emergency"],
+            stream_to_gate_mapping=", ".join(stg["mk_firm"]),
+            gates=gates["mk_firm"],
         )
 
     ini = omnetpp_ini.format(
@@ -575,6 +550,11 @@ def main(raw_args=None):
         default=".",
         help="location (relative to ini file) of histograms",
     )
+    parser.add_argument(
+        "--delay_outliers",
+        action="store_true",
+        help="randomly sample delays at talker and 5G links differently from known histograms",
+    )
 
     args = parser.parse_args(raw_args)
 
@@ -597,6 +577,7 @@ def main(raw_args=None):
         args.simulation_time,
         args.repetitions,
         args.histogram_directory,
+        args.delay_outliers,
     )
 
 

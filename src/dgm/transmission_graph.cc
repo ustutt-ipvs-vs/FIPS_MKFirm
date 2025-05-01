@@ -1,6 +1,5 @@
 #include "transmission_graph.h"
 #include "critical_path.h"
-#include "dgm/tsn_configuration.h"
 #include "network/histogram.h"
 #include "network/stream.h"
 #include "network/stream_storage.h"
@@ -120,10 +119,6 @@ auto TransmissionGraph::operator=(TransmissionGraph &&other) noexcept -> Transmi
   std::swap(stream_filter_, other.stream_filter_);
   rebuild();
   return *this;
-}
-
-auto TransmissionGraph::derive_tsn_configuration() -> TSNConfiguration {
-  return TSNConfiguration(dfs_, processing_order_, topology_, stream_storage_->hyper_cycle);
 }
 
 auto TransmissionGraph::is_feasible() -> bool {

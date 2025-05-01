@@ -16,8 +16,11 @@ protected:
                          .frame_size = 100,
                          .period = 100000 * ((i % 5) + 1),
                          //.pcp = static_cast<PCPValue>(i),
-                         .objective_type = TARDINESS,
-                         .e2e_latency = 100000 * ((i % 5) + 1),
+                         .stable_qos =
+                             {
+                                 .objective_type = TARDINESS,
+                                 .e2e_latency = 100000 * ((i % 5) + 1),
+                             },
                          .name = std::format("S{}", i)});
       std::println("Stream {}", i);
       streams.back().route.print_tree();

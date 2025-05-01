@@ -28,21 +28,23 @@ CT_PERIOD = [5000000]
 CT_PHASE = [0]
 CT_FRAMESIZE = [100]
 CT_E2E_LATENCY = [500000]
-CT_JITTER = [1000]
-CT_PCP = [7]
+CT_JITTER = [0]
+CT_PCP = [6]
 
-WT_TYPES = 1
-WT_PERIOD = [20000000]  # 25ms, 50ms, 100ms
-WT_PHASE = [0]
-WT_FRAMESIZE = [100]  # 100 byte, 100 byte, 100 byte
-WT_E2E_LATENCY = [20000000]  # 25ms, 50ms, 100ms
-WT_JITTER = [100000]  # 250us, 250us, 250us
-WT_PCP = [6]
+WT_TYPES = 4
+WT_RANDOM_WEIGHTS = [3, 1, 1, 1]
+WT_PERIOD = [25000000, 25000000, 25000000, 25000000]
+WT_PHASE = [0, 0, 0, 0]
+WT_FRAMESIZE = [100, 100, 100, 100]
+WT_STABLE_LATENCY = [25000000, 25000000, 25000000, 25000000]
+WT_STABLE_JITTER = [0, 0, 0, 0]
+WT_MK_FIRM_MASK = ["000", "100", "010", "001"]
+WT_MK_FIRM_LATENCY = [25000000, 25000000, 25000000, 25000000]
+WT_PCP = [5, 5, 5, 5]
 
-WT_RELIABILITY = [0.9999]
-WT_FRAME_LOSS = [0]
+WT_RELIABILITY = [0.99, 0.99, 0.99, 0.99]
 WT_RTI_POLICY = "minimize_interval"
-STREAM_OBJECTIVE = "tardiness_and_jitter"
+STREAM_OBJECTIVE = "tardiness"
 
 OMNETPP_X = 700
 OMNETPP_Y = 500
@@ -172,9 +174,11 @@ def build_core(size: int, ct: int, bypass: bool):
                 "period": CT_PERIOD[i],
                 "phase": CT_PHASE[i],
                 "pcp": CT_PCP[i],
-                "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                "e2e_latency": CT_E2E_LATENCY[i],
-                "jitter": CT_JITTER[i],
+                "stable_qos": {
+                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                    "latency": CT_E2E_LATENCY[i],
+                    "jitter": CT_JITTER[i],
+                },
                 "frame_size": CT_FRAMESIZE[i],
                 "route": route,
                 "pdb_map": None,
@@ -360,9 +364,11 @@ def build_agv(
                 "period": CT_PERIOD[i],
                 "phase": CT_PHASE[i],
                 "pcp": CT_PCP[i],
-                "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                "e2e_latency": CT_E2E_LATENCY[i],
-                "jitter": CT_JITTER[i],
+                "stable_qos": {
+                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                    "latency": CT_E2E_LATENCY[i],
+                    "jitter": CT_JITTER[i],
+                },
                 "frame_size": CT_FRAMESIZE[i],
                 "route": route,
                 "pdb_map": None,
@@ -378,7 +384,7 @@ def build_agv(
             + list(itertools.pairwise(list(reversed(random_path(size, offset)))))
         )
 
-        i = random.randrange(WT_TYPES)
+        i = random.choices(range(WT_TYPES), weights=WT_RANDOM_WEIGHTS)[0]
         if pdc > 0:
             streams.append(
                 {
@@ -386,10 +392,15 @@ def build_agv(
                     "period": WT_PERIOD[i],
                     "phase": WT_PHASE[i],
                     "pcp": WT_PCP[i],
-                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": jitter[i],
-                    "frame_loss": WT_FRAME_LOSS[i],
+                    "mk_firm": {
+                        "mask": WT_MK_FIRM_MASK[i],
+                        "latency": WT_MK_FIRM_LATENCY[i],
+                    },
+                    "stable_qos": {
+                        "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                        "latency": WT_STABLE_LATENCY[i],
+                        "jitter": jitter[i],
+                    },
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
@@ -410,10 +421,15 @@ def build_agv(
                     "period": WT_PERIOD[i],
                     "phase": WT_PHASE[i],
                     "pcp": WT_PCP[i],
-                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": jitter[i],
-                    "frame_loss": WT_FRAME_LOSS[i],
+                    "mk_firm": {
+                        "mask": WT_MK_FIRM_MASK[i],
+                        "latency": WT_MK_FIRM_LATENCY[i],
+                    },
+                    "stable_qos": {
+                        "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                        "latency": WT_STABLE_LATENCY[i],
+                        "jitter": jitter[i],
+                    },
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
@@ -436,7 +452,7 @@ def build_agv(
             + list(itertools.pairwise(list(reversed(random_path(csize, 0)))))
         )
 
-        i = random.randrange(WT_TYPES)
+        i = random.choices(range(WT_TYPES), weights=WT_RANDOM_WEIGHTS)[0]
         if pdc > 0:
             streams.append(
                 {
@@ -444,10 +460,15 @@ def build_agv(
                     "period": WT_PERIOD[i],
                     "phase": WT_PHASE[i],
                     "pcp": WT_PCP[i],
-                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": jitter[i],
-                    "frame_loss": WT_FRAME_LOSS[i],
+                    "mk_firm": {
+                        "mask": WT_MK_FIRM_MASK[i],
+                        "latency": WT_MK_FIRM_LATENCY[i],
+                    },
+                    "stable_qos": {
+                        "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                        "latency": WT_STABLE_LATENCY[i],
+                        "jitter": jitter[i],
+                    },
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
@@ -468,10 +489,15 @@ def build_agv(
                     "period": WT_PERIOD[i],
                     "phase": WT_PHASE[i],
                     "pcp": WT_PCP[i],
-                    "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
-                    "e2e_latency": WT_E2E_LATENCY[i],
-                    "jitter": jitter[i],
-                    "frame_loss": WT_FRAME_LOSS[i],
+                    "mk_firm": {
+                        "mask": WT_MK_FIRM_MASK[i],
+                        "latency": WT_MK_FIRM_LATENCY[i],
+                    },
+                    "stable_qos": {
+                        "objective_type": STREAM_OBJECTIVES[STREAM_OBJECTIVE],
+                        "latency": WT_STABLE_LATENCY[i],
+                        "jitter": jitter[i],
+                    },
                     "frame_size": WT_FRAMESIZE[i],
                     "route": route,
                     "pdb_map": [
@@ -535,7 +561,9 @@ def main(raw_args=None):
     parser.add_argument(
         "-rel", "--reliability", type=float, nargs="+", default=WT_RELIABILITY
     )
-    parser.add_argument("-jitter", "--jitter", type=float, nargs="+", default=WT_JITTER)
+    parser.add_argument(
+        "-jitter", "--jitter", type=float, nargs="+", default=WT_STABLE_JITTER
+    )
 
     parser.add_argument("-pdc", "--packet_delay_correction", type=float, default=0)
     parser.add_argument("-vslot", "--virtual_slot_size", type=int, default=0)

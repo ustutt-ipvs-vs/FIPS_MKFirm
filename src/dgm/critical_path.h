@@ -42,10 +42,10 @@ struct CriticalPath {
   auto compute(GlobalObjective objective_type) -> std::optional<Result>;
   [[nodiscard]] auto get_last() const -> Result { return last_result_; }
 
-  [[nodiscard]] auto
-  traverse_operations() const -> Generator<std::pair<const TransmissionOperation *, Delay>>;
-  [[nodiscard]] auto
-  print() const -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
+  [[nodiscard]] auto traverse_operations() const
+      -> Generator<std::pair<const TransmissionOperation *, Delay>>;
+  [[nodiscard]] auto print() const
+      -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
 
   auto operator[](GlobalOpIndex id) const noexcept -> CriticalCost { return crit_cost_[id]; }
 
@@ -54,9 +54,13 @@ struct CriticalPath {
         std::make_pair(DFSVisitor::DISCOVER_VERTEX,
                        [&](auto v) { return this->visitor_discover_vertex(v); }),
         std::make_pair(DFSVisitor::FINISH_EDGE,
-                       [&](auto e) { return this->visitor_finish_edge(e); }),
+                       [&](auto e) { return this->visitor_finish_edge(e); })
+#ifndef NDEBUG
+            ,
         std::make_pair(DFSVisitor::TREE_EDGE, [&](auto e) { return this->visitor_tree_edge(e); }),
-        std::make_pair(DFSVisitor::BACK_EDGE, [&](auto e) { return this->visitor_back_edge(e); }));
+        std::make_pair(DFSVisitor::BACK_EDGE, [&](auto e) { return this->visitor_back_edge(e); })
+#endif
+    );
   }
 
 private:
@@ -73,10 +77,9 @@ private:
     std::string indent;
   };
 
-  [[nodiscard]] auto
-  print(const std::vector<VertexInfo> &info, std::string indent, GlobalOpIndex id,
-        GlobalOpIndex parent,
-        bool is_last_child) const -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
+  [[nodiscard]] auto print(const std::vector<VertexInfo> &info, std::string indent,
+                           GlobalOpIndex id, GlobalOpIndex parent, bool is_last_child) const
+      -> Generator<std::tuple<std::string, GlobalOpIndex, std::string>>;
   [[nodiscard]] auto objective(GlobalObjective objective_type) -> Result;
 
   constexpr auto visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus {
@@ -94,6 +97,8 @@ private:
     }
     return CONTINUE;
   }
+
+#ifndef NDEBUG
   constexpr auto visitor_back_edge(auto visitor) noexcept -> TraversalStatus {
     auto [u, v, type] = std::get<Edge>(visitor);
     auto w = u->id;
@@ -118,6 +123,7 @@ private:
                           .pred = u->id};
     return CONTINUE;
   }
+#endif
 };
 
 } // namespace tsndgm

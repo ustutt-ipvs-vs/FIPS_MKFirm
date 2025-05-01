@@ -38,11 +38,13 @@ struct DFSVisitor {
 
 template <typename... Functions> class DFSEventHandler {
 public:
+  mutable TraversalStatus status;
+
   constexpr DFSEventHandler(std::pair<DFSVisitor::Event, Functions> &&...funcs) noexcept
-      : funcs_(std::move(funcs)...) {}
+      : status(CONTINUE), funcs_(std::move(funcs)...) {}
   constexpr DFSEventHandler(
       const std::tuple<std::pair<DFSVisitor::Event, Functions>...> &funcs) noexcept
-      : funcs_(funcs) {}
+      : status(CONTINUE), funcs_(funcs) {}
   constexpr ~DFSEventHandler() noexcept = default;
 
   // copy
@@ -54,21 +56,16 @@ public:
 
   template <typename... Args>
   auto operator()(DFSVisitor::Event event, Args &&...args) const noexcept {
-    TraversalStatus status = CONTINUE;
-    [event, &status, this]<size_t... I>(std::index_sequence<I...> /*unused*/,
-                                        Args &&...args) -> void {
-      if (status != ABORT) {
-        constexpr static auto f = [](auto &pair, DFSVisitor::Event event,
-                                     Args &&...args) -> TraversalStatus {
-          if (pair.first == event) {
-            return std::invoke(pair.second, args...);
+    [event, this]<size_t... I>(std::index_sequence<I...> /*unused*/, Args &&...args) -> void {
+      if (status == CONTINUE) {
+        auto f = [this](auto &pair, DFSVisitor::Event event, Args &&...args) -> void {
+          if (status == CONTINUE && pair.first == event) {
+            status = std::invoke(pair.second, args...);
           }
-          return CONTINUE;
         };
-        status = (std::invoke(f, std::get<I>(funcs_), event, args...), ...);
+        (std::invoke(f, std::get<I>(funcs_), event, args...), ...);
       }
     }(std::make_index_sequence<sizeof...(Functions)>(), std::forward<Args>(args)...);
-    return status;
   }
 
   template <typename... FunctionsOther>
@@ -158,9 +155,9 @@ struct DFSTraversal {
   template <TraversalDirection D, typename... Functions>
   auto traverse(Vertex *start, DFSEventHandler<Functions...> handler) {
     for (auto visitor : traverse<D>(start)) {
-      auto status = handler(visitor.event, visitor.visited_element);
-      if (status != CONTINUE) {
-        return status;
+      handler(visitor.event, visitor.visited_element);
+      if (handler.status != CONTINUE) {
+        return handler.status;
       }
     }
     return COMPLETED;
