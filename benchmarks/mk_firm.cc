@@ -10,7 +10,8 @@ using namespace tsndgm;
 
 template <typename Heuristic>
 void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopology &network,
-                       const std::filesystem::path tsn_config_file) {
+                       const std::filesystem::path tsn_config_file,
+                       const std::filesystem::path mkfirm_config_file) {
   StreamId count = 0;
   Heuristic heuristic(&stream_storage, &network);
   for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
@@ -18,11 +19,17 @@ void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopolog
     std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
     count += accepted ? 1 : 0;
   }
+
   if (count > 0) {
-    auto tsn_configuration = heuristic.g.template derive_tsn_configuration<MKFirmConfiguration>();
-    if (tsn_configuration.status == COMPLETED) {
-      tsn_configuration.add_meta_data("generated_by", "benchmarks/heuristic.cc");
+    auto tsn_configuration =
+        heuristic.g.template derive_tsn_configuration<CriticalPathConfiguration>();
+    auto mkfirm_configuration =
+        heuristic.g.template derive_tsn_configuration<MKFirmConfiguration>();
+    if (mkfirm_configuration.status == COMPLETED) {
+      tsn_configuration.add_meta_data("generated_by", "benchmarks/mk_firm.cc");
       tsn_configuration.dump_to_file(tsn_config_file);
+      mkfirm_configuration.add_meta_data("generated_by", "benchmarks/mk_firm.cc");
+      mkfirm_configuration.dump_to_file(mkfirm_config_file);
       std::println("Scheduled {} streams", count);
     }
   }
@@ -38,27 +45,25 @@ int main(int argc, char **argv) {
       .default_value(std::string("../data/streams.json"))
       .required()
       .help("specify the time-triggered streams");
-  program.add_argument("-o", "--output")
+  program.add_argument("--output_normal")
       .default_value(std::string("../data/tsn_configuration.json"))
       .required()
-      .help("output file of the final TSN configuration");
-  program.add_argument("-sti", "--strict_temporal_isolation")
-      .default_value(false)
-      .implicit_value(true)
-      .help("use strict temporal isolation constraints (i.e., no batching)");
+      .help("output file of the normal TSN configuration");
+  program.add_argument("--output_mkfirm")
+      .default_value(std::string("../data/mkfirm_configuration.json"))
+      .required()
+      .help("output file of the (m,k)-firm TSN configuration");
   program.parse_args(argc, argv);
 
   auto network_file = std::filesystem::path(program.get<std::string>("-n"));
   auto network = NetworkTopology(network_file);
   auto stream_file = std::filesystem::path(program.get<std::string>("-s"));
   auto stream_storage = StreamStorage(stream_file, network);
-  auto tsn_config_file = std::filesystem::path(program.get<std::string>("-o"));
+  auto tsn_config_file = std::filesystem::path(program.get<std::string>("--output_normal"));
+  auto mkfirm_config_file = std::filesystem::path(program.get<std::string>("--output_mkfirm"));
 
-  if (program.get<bool>("-sti")) {
-    execute_heuristic<StrictTemporalIsolationHeuristic>(stream_storage, network, tsn_config_file);
-  } else {
-    execute_heuristic<IncrementalHeuristic>(stream_storage, network, tsn_config_file);
-  }
+  execute_heuristic<IncrementalHeuristic>(stream_storage, network, tsn_config_file,
+                                          mkfirm_config_file);
 
   return 0;
 }

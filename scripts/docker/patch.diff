@@ -366,6 +366,201 @@ index 26daab3..ed786d7 100644
          string destAddress = default(""); // destination IP address to forward the UDP packets to
          int destPort; // destination port number for the UDP packets
          volatile double delay @unit(s) = default(0s); // specifies delay per UDP packets
+diff --git a/src/delayer/ExprTTDelayer.cc b/src/delayer/ExprTTDelayer.cc
+new file mode 100644
+index 0000000..c7d0245
+--- /dev/null
++++ b/src/delayer/ExprTTDelayer.cc
+@@ -0,0 +1,60 @@
++// This file is part of Deliverable D4.1 DetCom Simulator Framework Release 1
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#include "ExprTTDelayer.h"
++#include "inet/common/packet/PacketFilter.h"
++
++namespace d6g {
++    Define_Module (ExprTTDelayer);
++
++    void ExprTTDelayer::initialize(int stage)
++    {
++        InterfaceFilterMixin::initialize(stage);
++        if (stage == INITSTAGE_LOCAL) {
++            mapping = check_and_cast<cValueArray *>(par("delays").objectValue());
++        }
++    }
++
++    clocktime_t ExprTTDelayer::computeDelay(Packet* packet) const
++    {
++        clocktime_t delay;
++        if (!matchesInterfaceConfiguration(packet)) {
++	    EV_INFO << "no interface match" << endl;
++            delay = 0;
++        }
++        else {
++            auto nonConstThis = const_cast<ExprTTDelayer *>(this);
++            for (int i = 0; i < mapping->size(); i++) {
++		EV_INFO << "test " << i << endl;
++                auto element = check_and_cast<cValueMap *>(mapping->get(i).objectValue());
++                PacketFilter packetFilter;
++                auto packetPattern = element->containsKey("packetFilter") ? element->get("packetFilter") : cValue("*");
++                packetFilter.setExpression(packetPattern);
++                if (packetFilter.matches(packet)) {
++		    EV_INFO << "match" << endl;
++                    auto delayExpression = new cDynamicExpression();
++                    delayExpression->parseNedExpr(element->get("delay").stringValue());
++                    delay = delayExpression->doubleValue(nonConstThis, "s");
++                }
++            }
++        }
++
++        return delay;
++    }
++
++    void ExprTTDelayer::setDelay(cPar* delays)
++    {
++        mapping = check_and_cast<cValueArray *>(delays->objectValue());
++    }
++
++    void ExprTTDelayer::handleParameterChange(const char* parname)
++    {
++        if (!strcmp(parname, "delays")) {
++            setDelay(&par("delays"));
++        }
++    }
++} // namespace d6g
+diff --git a/src/delayer/ExprTTDelayer.h b/src/delayer/ExprTTDelayer.h
+new file mode 100644
+index 0000000..699fff1
+--- /dev/null
++++ b/src/delayer/ExprTTDelayer.h
+@@ -0,0 +1,53 @@
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Lesser General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++// 
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Lesser General Public License for more details.
++// 
++// You should have received a copy of the GNU Lesser General Public License
++// along with this program.  If not, see http://www.gnu.org/licenses/.
++// 
++
++#ifndef ___6GDETCOM_SIMULATOR_EXPRTTDELAYER_H_
++#define ___6GDETCOM_SIMULATOR_EXPRTTDELAYER_H_
++
++#include "../utils/InterfaceFilterMixin.h"
++#include "inet/queueing/base/PacketDelayerBase.h"
++
++using namespace omnetpp;
++using namespace inet::queueing;
++
++namespace d6g {
++
++/**
++ * TODO - Generated class
++ */
++    class ExprTTDelayer : public InterfaceFilterMixin<PacketDelayerBase> {
++    private:
++        cValueArray *mapping = nullptr;
++
++    protected:
++        void initialize(int stage) override;
++
++        /**!
++         * Compute the delay for the given packet.
++         * Uses the InterfaceInd and InterfaceReq tags to determine the input and output interfaces.
++         *
++         * @param packet Packet to delay
++         * @return delay for the packet
++         */
++        clocktime_t computeDelay(Packet *packet) const override;
++
++        void setDelay(cPar *delay);
++
++        void handleParameterChange(const char *parname) override;
++    };
++
++} //namespace
++
++#endif
+diff --git a/src/delayer/ExprTTDelayer.ned b/src/delayer/ExprTTDelayer.ned
+new file mode 100644
+index 0000000..55fc397
+--- /dev/null
++++ b/src/delayer/ExprTTDelayer.ned
+@@ -0,0 +1,31 @@
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Lesser General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++// 
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Lesser General Public License for more details.
++// 
++// You should have received a copy of the GNU Lesser General Public License
++// along with this program.  If not, see http://www.gnu.org/licenses/.
++// 
++
++package d6g.delayer;
++
++import inet.queueing.base.PacketDelayerBase;
++import inet.queueing.contract.IPacketDelayer;
++
++//
++// TODO auto-generated module
++//
++simple ExprTTDelayer extends PacketDelayerBase like IPacketDelayer
++{
++    parameters:
++        object delays = default([]); // specifies delay based on filter expressions
++        object indInterfaceTypes = default([]); // Only apply delay if the ind interface is of specific type (e.g. ["tt"] or ["tt", "eth"], empty means any)
++        object reqInterfaceTypes = default([]); // Only apply delay if the req interface is of specific type (e.g. ["tt"] or ["tt", "eth"], empty means any)
++        @class(ExprTTDelayer);
++}
+diff --git a/src/delayer/TTDelayLayer.ned b/src/delayer/TTDelayLayer.ned
+index 62b2b1f..7015587 100644
+--- a/src/delayer/TTDelayLayer.ned
++++ b/src/delayer/TTDelayLayer.ned
+@@ -31,19 +31,26 @@ module TTDelayLayer extends ProcessingDelayLayer like IProcessingDelayLayer
+         volatile double delayUplink @mutable @unit(s) = default(0s); // Uplink Delay
+         volatile double delayDownlink @mutable @unit(s) = default(0s); // Downlink Delay
+ 
++        volatile object delaysUplink @mutable = default([]); // Uplink Delay
++        volatile object delaysDownlink @mutable = default([]); // Downlink Delay
++
++        bool hasExprDelayer @mutable = default(false); // Determines whether the ExprTTDelayer is used
++
+         // Ingress for downlink
+         // Arrives at tt (ingress, from other UE or NWTT) --> delay --> bridging logic --> eth (egress)
+-        ingress.typename = default("TTDelayer");
++        ingress.typename = default(hasExprDelayer ? "ExprTTDelayer" : "TTDelayer");
+          // We do not know the egress interface at the ingress delayer, so only use indInterfaceType
+         ingress.indInterfaceTypes = ["tt"];
+         ingress.delay = default(this.delayDownlink);
++        ingress.delays = default(dup(this.delaysDownlink));
+ 
+         // Egress for uplink
+         // Arrives at eth (ingress) --> bridging logic --> delay --> tt (egress, to other UE or NWTT)
+-        egress.typename = default("TTDelayer");
++        egress.typename = default(hasExprDelayer ? "ExprTTDelayer" : "TTDelayer");
+         egress.indInterfaceTypes = ["eth"];
+          // Normally there should only be one eth interface, so if ind is eth, egress should always be tt
+          // However, we don't want to mess up things if someone adds another eth interface, so specify reqInterfaceType regardless
+         egress.reqInterfaceTypes = ["tt"];
+         egress.delay = default(this.delayUplink);
++        egress.delays = default(dup(this.delaysUplink));
+ }
 diff --git a/src/devices/DetCom.ned b/src/devices/DetCom.ned
 index e941123..9bd953d 100644
 --- a/src/devices/DetCom.ned
@@ -674,6 +869,397 @@ index 0000000..59de5a6
 +	int emergencyPcp = default(7); // PCP value of emergency traffic
 +        @class(EmergencyStreamClassifier);
 +}
+diff --git a/src/devices/gate/OctetLimitedPeriodicGate.cc b/src/devices/gate/OctetLimitedPeriodicGate.cc
+new file mode 100644
+index 0000000..3a989eb
+--- /dev/null
++++ b/src/devices/gate/OctetLimitedPeriodicGate.cc
+@@ -0,0 +1,47 @@
++//
++// Copyright (C) 2020 OpenSim Ltd.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++//
++
++#include "OctetLimitedPeriodicGate.h"
++
++namespace d6g {
++
++Define_Module(OctetLimitedPeriodicGate);
++
++void OctetLimitedPeriodicGate::initialize(int stage) {
++  PeriodicGate::initialize(stage);
++  if (stage == INITSTAGE_LOCAL) {
++    octetLimit = par("octetLimit");
++  }
++}
++
++void OctetLimitedPeriodicGate::handleParameterChange(const char *name) {
++  if (!strcmp(name, "octetLimit"))
++    octetLimit = par("octetLimit");
++  PeriodicGate::handleParameterChange(name);
++}
++
++void OctetLimitedPeriodicGate::open() {
++  PeriodicGate::open();
++  octetsLeft_ = octetLimit;
++}
++
++bool OctetLimitedPeriodicGate::canPacketFlowThrough(Packet *packet) const {
++  bool allowed = PeriodicGate::canPacketFlowThrough(packet);
++
++  EV << "OctetLimit: " << packet->getTotalLength().get() << " " << octetsLeft_
++     << endl;
++  if (packet->getTotalLength().get() <= octetsLeft_) {
++    return true;
++  }
++  return false;
++}
++
++void OctetLimitedPeriodicGate::processPacket(Packet *packet) {
++  PeriodicGate::processPacket(packet);
++  octetsLeft_ -= packet->getTotalLength().get();
++}
++
++} // namespace d6g
+diff --git a/src/devices/gate/OctetLimitedPeriodicGate.h b/src/devices/gate/OctetLimitedPeriodicGate.h
+new file mode 100644
+index 0000000..0e1a73a
+--- /dev/null
++++ b/src/devices/gate/OctetLimitedPeriodicGate.h
+@@ -0,0 +1,36 @@
++//
++// Copyright (C) 2020 OpenSim Ltd.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++//
++
++#ifndef DETERMINISTIC6G_OCTETLIMITEDPERIODICGATE_H
++#define DETERMINISTIC6G_OCTETLIMITEDPERIODICGATE_H
++
++#include "inet/queueing/gate/PeriodicGate.h"
++
++namespace d6g {
++using namespace inet;
++using namespace inet::queueing;
++
++class INET_API OctetLimitedPeriodicGate : public PeriodicGate {
++
++private:
++  int octetsLeft_ = 0;
++
++protected:
++  int octetLimit = 0;
++
++protected:
++  virtual void initialize(int stage) override;
++  virtual void handleParameterChange(const char *name) override;
++  virtual bool canPacketFlowThrough(Packet *packet) const override;
++  virtual void processPacket(Packet *packet) override;
++
++public:
++  virtual void open() override;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/devices/gate/OctetLimitedPeriodicGate.ned b/src/devices/gate/OctetLimitedPeriodicGate.ned
+new file mode 100644
+index 0000000..140009e
+--- /dev/null
++++ b/src/devices/gate/OctetLimitedPeriodicGate.ned
+@@ -0,0 +1,21 @@
++//
++// Copyright (C) 2020 OpenSim Ltd.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++//
++
++
++package d6g.devices.gate;
++
++import inet.queueing.gate.PeriodicGate;
++
++//
++// This module extends the behavior of PeriodicGate by limiting the
++// octets that can pass through while the gate is open
++//
++simple OctetLimitedPeriodicGate extends PeriodicGate
++{
++    parameters:
++	int octetLimit @unit(b); // maximum octets that can pass the gate while open
++        @class(OctetLimitedPeriodicGate);
++}
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.cc b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.cc
+new file mode 100644
+index 0000000..2f306f7
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.cc
+@@ -0,0 +1,13 @@
++#include "MKFirmBackPressureBasedFilter.h"
++
++namespace d6g {
++
++Define_Module(MKFirmBackPressureBasedFilter);
++
++bool MKFirmBackPressureBasedFilter::canPushPacket(Packet *packet,
++                                                  const cGate *gate) const {
++  return consumer != nullptr &&
++         consumer.canPushPacket(const_cast<Packet *>(packet));
++}
++
++} // namespace d6g
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.h b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.h
+new file mode 100644
+index 0000000..a83506f
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.h
+@@ -0,0 +1,17 @@
++#ifndef DETERMINISTIC6G_MKFIRM_BACKPRESSURE_BASED_FILTER_H
++#define DETERMINISTIC6G_MKFIRM_BACKPRESSURE_BASED_FILTER_H
++
++#include "inet/queueing/filter/BackPressureBasedFilter.h"
++
++namespace d6g {
++using namespace inet;
++using namespace inet::queueing;
++
++class MKFirmBackPressureBasedFilter : public BackPressureBasedFilter {
++protected:
++  virtual bool canPushPacket(Packet *packet, const cGate *gate) const;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.ned b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.ned
+new file mode 100644
+index 0000000..e86da7a
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmBackPressureBasedFilter.ned
+@@ -0,0 +1,12 @@
++package d6g.devices.mkfirm_elevation_policy;
++import inet.queueing.filter.BackPressureBasedFilter;
++
++// This module implements a packet filter that drops packets when the following module (consumer)
++// does not allow packets to be pushed. The module itself accepts all packets (i.e. canPushPacket()
++// and canPushSomePacket() always return true). This is useful, for example, when the following
++// module is a gate to filter out packets when the gate is closed.
++simple MKFirmBackPressureBasedFilter extends BackPressureBasedFilter
++{
++    parameters:
++        @class(MKFirmBackPressureBasedFilter);
++}
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmIeee8021qFilter.ned b/src/devices/mkfirm_elevation_policy/MKFirmIeee8021qFilter.ned
+new file mode 100644
+index 0000000..f3d8350
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmIeee8021qFilter.ned
+@@ -0,0 +1,67 @@
++package d6g.devices.mkfirm_elevation_policy;
++
++import inet.queueing.common.BackPressureBarrier;
++import inet.queueing.common.PacketMultiplexer;
++import inet.queueing.contract.IPacketClassifier;
++import inet.queueing.contract.IPacketFilter;
++import inet.queueing.contract.IPacketGate;
++import inet.queueing.contract.IPacketMeter;
++
++module MKFirmIeee8021qFilter like IPacketFilter
++{
++    parameters:
++        int numStreams = default(0); // number of default streams to filter for
++        int numMKFirmStreams = default(0); // number of (m,k)-firm streams to filter for
++        int startY = default(200);
++        int startMKFirmY = default(200 + 150 * numStreams);
++        @display("i=block/filter");
++    gates:
++        input in;
++        output out;
++    submodules:
++        classifier: <default("MKFirmStreamClassifier")> like IPacketClassifier {
++            gateIndexOffset = 1;
++            defaultGateIndex = 0;
++            @display("p=100,100");
++        }
++        gateFilter[numStreams]: <default("MKFirmBackPressureBasedFilter")> like IPacketFilter {
++            @display("p=300,$startY,column,150");
++        }
++        gateMKFirmFilter[numMKFirmStreams]: <default("MKFirmBackPressureBasedFilter")> like IPacketFilter {
++            @display("p=300,$startMKFirmY,column,150");
++        }
++        gate[numStreams + numMKFirmStreams]: <default("InteractiveGate")> like IPacketGate {
++            @display("p=500,$startY,column,150");
++        }
++        meter[numStreams + numMKFirmStreams]: <default("DualRateThreeColorMeter")> like IPacketMeter {
++            @display("p=700,$startY,column,150");
++        }
++        filter[numStreams + numMKFirmStreams]: <default("LabelFilter")> like IPacketFilter {
++            labelFilter = default("green");
++            @display("p=900,$startY,column,150");
++        }
++        multiplexer: PacketMultiplexer {
++            @display("p=1100,100");
++        }
++        barrier: BackPressureBarrier {
++            @display("p=1300,100");
++        }
++    connections:
++        in --> { @display("m=w"); } --> classifier.in;
++        classifier.out++ --> multiplexer.in++;
++        for i=0..numStreams-1 {
++            classifier.out++ --> gateFilter[i].in;
++            gateFilter[i].out --> gate[i].in;
++	}
++        for i=0..numMKFirmStreams-1 {
++            classifier.out++ --> gateMKFirmFilter[i].in;
++            gateMKFirmFilter[i].out --> gate[numStreams+i].in;
++	}
++        for i=0..numStreams+numMKFirmStreams-1 {
++            gate[i].out --> meter[i].in;
++            meter[i].out --> filter[i].in;
++            filter[i].out --> multiplexer.in++;
++        }
++        multiplexer.out --> barrier.in;
++        barrier.out --> { @display("m=e"); } --> out;
++}
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.cc b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.cc
+new file mode 100644
+index 0000000..3958ad1
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.cc
+@@ -0,0 +1,87 @@
++#include "MKFirmStreamClassifier.h"
++#include "inet/linklayer/common/PcpTag_m.h"
++#include "inet/protocolelement/redundancy/StreamTag_m.h"
++#include "inet/queueing/contract/IPacketFilter.h"
++
++namespace d6g {
++
++Define_Module(MKFirmStreamClassifier);
++
++void MKFirmStreamClassifier::initialize(int stage) {
++  StreamClassifier::initialize(stage);
++  if (stage == INITSTAGE_LOCAL) {
++    mkFirmMapping =
++        check_and_cast<cValueMap *>(par("mkFirmMapping").objectValue());
++    elevatedPcp = par("elevatedPcp");
++  }
++}
++
++int MKFirmStreamClassifier::classifyPacket(Packet *packet) {
++  // get streamName, as in StreamClassifier::classifyPacket
++  const char *streamName = nullptr;
++  switch (*mode) {
++  case 'r': {
++    auto streamReq = packet->findTag<StreamReq>();
++    if (streamReq != nullptr)
++      streamName = streamReq->getStreamName();
++    break;
++  }
++  case 'i': {
++    auto streamInd = packet->findTag<StreamInd>();
++    if (streamInd != nullptr)
++      streamName = streamInd->getStreamName();
++    break;
++  }
++  case 'b': {
++    auto streamReq = packet->findTag<StreamReq>();
++    if (streamReq != nullptr)
++      streamName = streamReq->getStreamName();
++    else {
++      auto streamInd = packet->findTag<StreamInd>();
++      if (streamInd != nullptr)
++        streamName = streamInd->getStreamName();
++    }
++    break;
++  }
++  }
++
++  int outputGateIndex = defaultGateIndex;
++  if (streamName != nullptr && mapping->containsKey(streamName)) {
++    outputGateIndex = mapping->get(streamName).intValue() + gateIndexOffset;
++  }
++
++  if (streamName != nullptr && mkFirmMapping->containsKey(streamName)) {
++    int mkFirmOutputGateIndex =
++        mkFirmMapping->get(streamName).intValue() + gateIndexOffset;
++    EV << "Gates: " << outputGateIndex << " " << mkFirmOutputGateIndex << endl;
++
++    if (packet->findTag<PcpInd>() != nullptr) {
++      auto pcpInd = packet->getTagForUpdate<PcpInd>();
++      // Frame is already elevated
++      if (pcpInd->getPcp() == elevatedPcp) {
++        EV << "Expedited forwarding of elevated frame" << endl;
++        return defaultGateIndex;
++      }
++      // Frame passes normal PSFP (and can be handled by GCL)
++      if (consumers[outputGateIndex].canPushPacket(packet)) {
++        EV << "Passes normal PSFP" << endl;
++        return outputGateIndex;
++      }
++      // At this point, decide whether to elevate or discard
++      if (consumers[mkFirmOutputGateIndex].canPushPacket(packet)) {
++        // Elevate priority
++        EV << "Elevate priority" << endl;
++        auto pcpInd = packet->getTagForUpdate<PcpInd>();
++        pcpInd->setPcp(elevatedPcp);
++        return mkFirmOutputGateIndex;
++      }
++    }
++  }
++
++  // There are two cases when reaching this line
++  // Normal frames -> outputGateIndex is normal way of PSFP handling
++  // MKfirm frames -> outputGateIndex is closed and frame is discarded
++  return outputGateIndex;
++}
++
++} // namespace d6g
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.h b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.h
+new file mode 100644
+index 0000000..f74648c
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.h
+@@ -0,0 +1,21 @@
++#ifndef DETERMINISTIC6G_STREAMCLASSIFIER_H
++#define DETERMINISTIC6G_STREAMCLASSIFIER_H
++
++#include "inet/protocolelement/redundancy/StreamClassifier.h"
++
++namespace d6g {
++using namespace inet;
++
++class INET_API MKFirmStreamClassifier : public StreamClassifier {
++protected:
++  cValueMap *mkFirmMapping = nullptr;
++  int elevatedPcp = 0;
++
++protected:
++  virtual void initialize(int stage) override;
++  virtual int classifyPacket(Packet *packet) override;
++};
++
++} // namespace d6g
++
++#endif
+diff --git a/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.ned b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.ned
+new file mode 100644
+index 0000000..10a6ba3
+--- /dev/null
++++ b/src/devices/mkfirm_elevation_policy/MKFirmStreamClassifier.ned
+@@ -0,0 +1,10 @@
++package d6g.devices.mkfirm_elevation_policy;
++import inet.protocolelement.redundancy.StreamClassifier;
++
++simple MKFirmStreamClassifier extends StreamClassifier
++{
++    parameters:
++        object mkFirmMapping = default({}); // maps stream name to gate index
++	int elevatedPcp = default(7); // PCP value of elevated traffic
++        @class(MKFirmStreamClassifier);
++}
 diff --git a/src/devices/tsntranslator/TTInterface.ned b/src/devices/tsntranslator/TTInterface.ned
 index 35310fb..1e752af 100644
 --- a/src/devices/tsntranslator/TTInterface.ned
@@ -687,6 +1273,45 @@ index 35310fb..1e752af 100644
  import inet.node.tsn.TsnSwitch;
  import inet.linklayer.contract.IEthernetInterface;
  
+diff --git a/src/devices/tsntranslator/TsnTranslator.ned b/src/devices/tsntranslator/TsnTranslator.ned
+index 8c64ed9..39bffe8 100644
+--- a/src/devices/tsntranslator/TsnTranslator.ned
++++ b/src/devices/tsntranslator/TsnTranslator.ned
+@@ -20,10 +20,19 @@ module TsnTranslator extends TsnSwitch
+     parameters:
+         int numTtInterfaces = default(0); // Number of other TT interfaces connected to this TSN Translator.
+         bool isDstt = default(false); // Specifies whether the TSN Translator is a DS-TT (otherwise it is a NW-TT).
+-        
++        bool hasPdc = default(false);
++        bool hasExprDelayer @mutable = default(false); // Determines whether the ExprTTDelayer is used
++
++        clock.typename = "IdealClock";
++
++        // For TTDelayer
+         volatile double delayUplink @mutable @unit(s) = default(0s); // Uplink Delay
+         volatile double delayDownlink @mutable @unit(s) = default(0s); // Downlink Delay
+-        
++
++        // For ExprTTDelayer
++        volatile object delaysUplink @mutable = default([]); // Uplink Delay for each TT interface
++        volatile object delaysDownlink @mutable = default([]); // Downlink Delay for each TT interface
++
+         // Chooses the MAC layer type based on whether frame preemption is enabled.
+         // "EthernetPreemptingMacLayer" is used for preemptive frames, otherwise "EthernetMacLayer" is used.
+         tt[*].macLayer.typename = default(hasFramePreemption ? "EthernetPreemptingMacLayer" : "EthernetMacLayer");
+@@ -44,6 +53,12 @@ module TsnTranslator extends TsnSwitch
+         bridging.delayLayer.typename = default(isDstt ? "TTDelayLayer" : "");
+         bridging.delayLayer.delayUplink = default(this.delayUplink);
+         bridging.delayLayer.delayDownlink = default(this.delayDownlink);
++        bridging.delayLayer.delaysUplink = default(dup(this.delaysUplink));
++        bridging.delayLayer.delaysDownlink = default(dup(this.delaysDownlink));
++
++        bridging.delayLayer.hasExprDelayer = default(this.hasExprDelayer);
++
++        @signal[distribution-event](type=cMessage);
+     gates:
+         inout ttg[numTtInterfaces] @labels(EtherFrame-conn);
+     submodules:
 diff --git a/src/networks/DetComNetworkBase.ned b/src/networks/DetComNetworkBase.ned
 index 0393a6d..e301429 100644
 --- a/src/networks/DetComNetworkBase.ned
@@ -700,3 +1325,121 @@ index 0393a6d..e301429 100644
 \ No newline at end of file
 +		**.eth[*].macLayer.queue.numTrafficClasses = default(2); // Specifying the number of traffic classes at the MAC layer for all Ethernet interfaces.
 +}
+diff --git a/src/utils/InterfaceFilterMixin.cc b/src/utils/InterfaceFilterMixin.cc
+new file mode 100644
+index 0000000..3400956
+--- /dev/null
++++ b/src/utils/InterfaceFilterMixin.cc
+@@ -0,0 +1,16 @@
++// This file is part of Deliverable D4.4 DetCom Simulator Framework Release 2
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#include "InterfaceFilterMixin.h"
++
++#include "inet/queueing/base/PacketDelayerBase.h"
++#include "inet/queueing/base/PacketFlowBase.h"
++
++namespace d6g {
++template class InterfaceFilterMixin<inet::queueing::PacketDelayerBase>;
++template class InterfaceFilterMixin<inet::queueing::PacketFlowBase>;
++}
+diff --git a/src/utils/InterfaceFilterMixin.h b/src/utils/InterfaceFilterMixin.h
+new file mode 100644
+index 0000000..a696ec6
+--- /dev/null
++++ b/src/utils/InterfaceFilterMixin.h
+@@ -0,0 +1,90 @@
++// This file is part of Deliverable D4.4 DetCom Simulator Framework Release 2
++// of the DETERMINISTIC6G project receiving funding from the
++// European Union’s Horizon Europe research and innovation programme
++// under Grant Agreement No. 101096504.
++//
++// SPDX-License-Identifier: LGPL-3.0-or-later
++
++#ifndef UTILS_INTERFACEFILTER_H_
++#define UTILS_INTERFACEFILTER_H_
++
++#include <omnetpp/ccomponent.h>
++#include "inet/common/InitStages.h"
++#include "inet/networklayer/common/NetworkInterface.h"
++#include "inet/linklayer/common/InterfaceTag_m.h"
++
++#include <set>
++namespace d6g {
++using namespace omnetpp;
++using namespace inet;
++
++
++template <typename T> class InterfaceFilterMixin : public T
++{
++  protected:
++    std::set<int> indInterfaces;
++    std::set<int> reqInterfaces;
++
++  protected:
++    void initialize(int stage) override;
++    void addInterfacesToSet(std::set<int> &set, const char *interfaceType);
++    bool matchesInterfaceConfiguration(Packet *packet) const;
++};
++template <typename T> void InterfaceFilterMixin<T>::initialize(int stage) {
++    T::initialize(stage);
++    if (stage == INITSTAGE_LAST) {
++        auto indInterfaceTypes = check_and_cast<cValueArray *>(T::par("indInterfaceTypes").objectValue());
++        for (int i = 0; i < indInterfaceTypes->size(); i++) {
++            addInterfacesToSet(indInterfaces, indInterfaceTypes->get(i).stringValue());
++        }
++        auto reqInterfaceTypes = check_and_cast<cValueArray *>(T::par("reqInterfaceTypes").objectValue());
++        for (int i = 0; i < reqInterfaceTypes->size(); i++) {
++            addInterfacesToSet(reqInterfaces, reqInterfaceTypes->get(i).stringValue());
++        }
++    }
++}
++
++template <typename T> void InterfaceFilterMixin<T>::addInterfacesToSet(std::set<int> &set, const char *interfaceType) {
++    // Check if context has submodule with name interfaceType
++    auto node = getContainingNode(this);
++    if (!node->hasSubmoduleVector(interfaceType)) {
++        throw cRuntimeError("No submodule with name '%s' found in '%s'", interfaceType, node->getFullPath().c_str());
++    }
++
++    // Get submodule vector with name interfaceType
++    for (int i = 0; i < node->getSubmoduleVectorSize(interfaceType); i++) {
++        auto *interface = dynamic_cast<NetworkInterface *>(node->getSubmodule(interfaceType, i));
++        if (interface == nullptr) {
++            throw cRuntimeError("Submodule with name '%s' is not a NetworkInterface", interfaceType);
++        }
++        set.insert(interface->getInterfaceId());
++    }
++}
++
++template <typename T> bool InterfaceFilterMixin<T>::matchesInterfaceConfiguration(Packet *packet) const
++{
++    bool indInterfaceMatch = false;
++    bool reqInterfaceMatch = false;
++
++    if (indInterfaces.empty() || !packet->hasTag<InterfaceInd>()) {
++        indInterfaceMatch = true;
++    }
++    if (!indInterfaceMatch) {
++        auto interfaceInd = packet->getTag<InterfaceInd>();
++        indInterfaceMatch = indInterfaces.find(interfaceInd->getInterfaceId()) != indInterfaces.end();
++    }
++
++    if (reqInterfaces.empty() || !packet->hasTag<InterfaceReq>()) {
++        reqInterfaceMatch = true;
++    }
++    if (!reqInterfaceMatch) {
++        auto interfaceReq = packet->getTag<InterfaceReq>();
++        reqInterfaceMatch = reqInterfaces.find(interfaceReq->getInterfaceId()) != reqInterfaces.end();
++    }
++
++    return indInterfaceMatch && reqInterfaceMatch;
++}
++
++} /* namespace d6g */
++
++#endif /* UTILS_INTERFACEFILTER_H_ */

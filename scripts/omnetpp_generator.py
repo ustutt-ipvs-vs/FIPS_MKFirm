@@ -188,16 +188,18 @@ histograms_ini_header = """
 """
 
 random_delay_ini_header = """
-*.detcom*.**.delayDownlink = uniform(0.1ms, 25ms)
-*.detcom*.**.delayUplink = uniform(0.1ms, 25ms)
+*.detcom*.dstt[*].hasExprDelayer = true
+*.detcom*.dstt[*].delaysUplink = [{delays}]
 """
+
+stream_delay_ini_header = """{{packetFilter: expr(udp.destPort == {port}), delay: "uniform(0.1ms, {max_delay}ms)"}}"""
 
 talker_ini = """
 *.{device}.hasOutgoingStreams = {has_outgoing_streams}
 *.{device}.numApps = {apps}
 *.{device}.numPcapRecorders = 1
 *.{device}.pcapRecorder[0].moduleNamePattersn = "eth[*]"
-*.{device}.pcapRecorder[0].pcapFile = "results/{device}.pcap"
+*.{device}.pcapRecorder[0].pcapFile = "results/{scenario}/{device}-${{runnumber}}.pcap"
 """
 
 channel_ini = "*.{source}.eth[{iface}].bitrate = {datarate}Mbps\n"
@@ -227,26 +229,11 @@ tt_stream_ini = """
 *.{listener}.app[{listener_app}].io.localPort = {port}
 """
 
-et_stream_ini = """
-*.{talker}.app[{talker_app}].typename = "UdpBasicBurst"
-*.{talker}.app[{talker_app}].packetName = "et_{stream}"
-*.{talker}.app[{talker_app}].destAddresses = "{listener}"
-*.{talker}.app[{talker_app}].chooseDestAddrMode = "once"
-*.{talker}.app[{talker_app}].destPort = {port}
-*.{talker}.app[{talker_app}].burstDuration = {burst_duration}ms
-*.{talker}.app[{talker_app}].startTime = {interevent_time}ms + exponential({exp_param}ms)
-*.{talker}.app[{talker_app}].sleepDuration = {interevent_time}ms + exponential({exp_param}ms)
-*.{talker}.app[{talker_app}].sendInterval = 9999s # burst consists of a single packet
-*.{talker}.app[{talker_app}].messageLength = {frame_size}B - 58B # 58B = 8B (UDP) + 20B (IP) + 14B (ETH MAC) + 4B (Dot1Q) + 4B (ETH FCS) + 8B (ETH PHY)
-*.{listener}.app[{listener_app}].typename = "UdpSinkApp"
-*.{listener}.app[{listener_app}].io.localPort = {port}
-"""
-
 shaping_ini = """
 *.{device}.hasEgressTrafficShaping = true
 *.{device}.numPcapRecorders = 1
 *.{device}.pcapRecorder[0].moduleNamePattersn = "eth[*]"
-*.{device}.pcapRecorder[0].pcapFile = "results/{device}.pcap"
+*.{device}.pcapRecorder[0].pcapFile = "results/{scenario}/{device}-${{runnumber}}.pcap"
 *.{device}.eth[*].macLayer.queue.numTrafficClasses = {queues}
 """
 
@@ -262,8 +249,8 @@ psfp_ini_header = """
 **.bridging.streamFilter.ingress.meter[*].committedInformationRate = 40Mbps
 **.bridging.streamFilter.ingress.meter[*].committedBurstSize = 10kB
 **.bridging.streamFilter.ingress.gate[*].initiallyOpen = false
-**.bridging.streamFilter.ingress.gate[*].typename = "PeriodicGate"
-**.bridging.streamFilter.ingress.typename = "{filter_type}"
+**.bridging.streamFilter.ingress.gate[*].typename = "OctetLimitedPeriodicGate"
+**.bridging.streamFilter.ingress.typename = "MKFirmIeee8021qFilter"
 """
 
 nts_map = "{{packetFilter: expr(udp.destPort == {dest_port}), stream: '{frame}'}}"
@@ -271,6 +258,7 @@ stg_map = "'{frame}': {id}"
 fl_map = "'{id}': {value}"
 gate_t = """*.{device}.bridging.streamFilter.ingress.gate[{id}].durations = [{durations}]
 *.{device}.bridging.streamFilter.ingress.gate[{id}].offset = {offset}ms
+*.{device}.bridging.streamFilter.ingress.gate[{id}].octetLimit = {octet_limit}B
 """
 
 psfp_ini = """*.{device}.hasIngressTrafficFiltering = true
@@ -311,10 +299,6 @@ def build_ini_file(
         sim_time=sim_time,
         repetitions=repetitions,
     )
-    if delay_outliers:
-        ini += random_delay_ini_header
-    else:
-        ini += histograms_ini_header.format(prefix=histogram_directory)
 
     ini_links = ""
     for link in topology["links"]:
@@ -327,6 +311,7 @@ def build_ini_file(
         ini_links += detcom_channel_ini.format(id=i, datarate=link["data_rate"] / 1e6)
 
     ini_tt_streams = ""
+    ini_stream_delays = []
     for stream in streams:
         stream["ports"] = []
         STREAM_TO_MODULE_MAP[stream["name"]] = []
@@ -364,7 +349,22 @@ def build_ini_file(
             device_map[stream["target"]]["app"] += 1
             device_map[stream["source"]]["app"] += 1
             stream["ports"].append(PORT)
+            ini_stream_delays.append(
+                stream_delay_ini_header.format(
+                    port=PORT,
+                    max_delay=(
+                        stream["period"] / 1e6
+                        if PORT % 2 == 0
+                        else 1.5 * stream["period"] / 1e6
+                    ),
+                )
+            )
             PORT += 1
+
+    if delay_outliers:
+        ini += random_delay_ini_header.format(delays=",\n\t".join(ini_stream_delays))
+    else:
+        ini += histograms_ini_header.format(prefix=histogram_directory)
 
     ini_talkers = ""
     for node_id in device_map:
@@ -375,6 +375,7 @@ def build_ini_file(
             device=node["name"],
             has_outgoing_streams=node["has_outgoing_streams"],
             apps=node["app"],
+            scenario=scenario,
         )
         if not node["has_outgoing_streams"]:
             continue
@@ -387,7 +388,9 @@ def build_ini_file(
     ini_bridges = ""
     for node_id in device_map:
         node = device_map[node_id]
-        ini_bridges += shaping_ini.format(device=node["name"], queues=8)
+        ini_bridges += shaping_ini.format(
+            device=node["name"], queues=8, scenario=scenario
+        )
 
     for port in tsn_config["GCL"]:
         for queue in tsn_config["GCL"][port]:
@@ -430,15 +433,11 @@ def build_ini_file(
             )
 
     has_mkfirm_streams = "MK_FIRM_PSFP" in tsn_config
-    ini_bridges += psfp_ini_header.format(
-        filter_type=(
-            "MKFirmIeee8021qFilter" if has_mkfirm_streams else "Ieee8021qFilter"
-        )
-    )
+    ini_bridges += psfp_ini_header
 
     for device in tsn_config["PSFP"]:
 
-        def gates_fmt(id, open, close, period):
+        def gates_fmt(id, open, close, period, octet_limit):
             offset = period - close
             durations = ", ".join(
                 [
@@ -447,7 +446,11 @@ def build_ini_file(
                 ]
             )
             return gate_t.format(
-                device=device, id=id, durations=durations, offset=offset / 1e6
+                device=device,
+                id=id,
+                durations=durations,
+                offset=offset / 1e6,
+                octet_limit=octet_limit,
             )
 
         def add_psfp_entry(entry, entry_type, frame):
@@ -465,7 +468,11 @@ def build_ini_file(
             stg[entry_type].append(stg_map.format(frame=frame, id=n))
             if entry_type == "default":
                 gates[entry_type] += gates_fmt(
-                    n, entry["open"], entry["close"], 1e6 * hyper_period
+                    n,
+                    entry["open"],
+                    entry["close"],
+                    1e6 * hyper_period,
+                    stream["frame_size"],
                 )
             else:
                 gates[entry_type] += gates_fmt(
@@ -473,6 +480,7 @@ def build_ini_file(
                     entry["open"],
                     entry["close"],
                     stream["period"] * len(stream["mk_firm"]["mask"]),
+                    stream["frame_size"],
                 )
 
         n = 0

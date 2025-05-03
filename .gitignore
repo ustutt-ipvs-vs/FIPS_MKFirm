@@ -6,3 +6,4 @@ temp
 modules
 Debug
 data
+**__pycache__**

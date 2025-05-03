@@ -55,7 +55,6 @@ TSNConfiguration<ConfigurationType>::TSNConfiguration(DFSTraversal &dfs,
     *this = TSNConfiguration<ConfigurationType>();
     return;
   }
-  std::println("completed");
   for (auto &[_, gate] : gcl_config) {
     gate.extend_to(hyper_cycle_);
   }

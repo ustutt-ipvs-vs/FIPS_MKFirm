@@ -1,5 +1,6 @@
-from agv_network_builder import main as benchmark_builder, WT_JITTER
+from agv_network_builder import main as benchmark_builder
 from omnetpp_generator import main as omnetpp_generator, STREAM_TO_MODULE_MAP
+from omnetpp_pcap_analysis import main as pcap_analysis
 import subprocess
 import shutil
 import os
@@ -10,47 +11,24 @@ import sys
 import pandas as pd
 from omnetpp.scave import results
 
-AGV_WT_OUT = 50
-AGV_WT_IN = 50
-AGV_CT = 5
-CORE_CT = 5
-
-LOW_RELIABILITY = 0.5
-HIGH_RELIABILITY = 0.9999
-JITTER = 100000
+AGV_WT_OUT = 40
+AGV_WT_IN = 40
+AGV_CT = 10
+CORE_CT = 10
 
 REPETITIONS = 1000
 SIM_TIME = 20  # 20s = 1000 hypercycles
 SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
 
-HIGH_CRITICALITY_STREAMS = [f"AGV0_CORE_0{i}" for i in range(5)] + [
-    f"CORE_AGV0_0{i}" for i in range(5)
-]
-
-PACKAGE_NAME = "agv"
+PACKAGE_NAME = "mk_firm"
 D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
 INET_PATH = "/usr/src/omnetpp/workspace/inet"
 
-SIMULATIONS = ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]
+SIMULATIONS = ["tsn_configuration", "mkfirm_configuration"]
 STREAM_TO_APPS = {t: {} for t in SIMULATIONS}
 
 
-def change_reliability(t, stream_names, reliability):
-    with open(f"data/simulations/streams_{t}.json", "r") as f:
-        d = json.load(f)
-
-    for stream in d:
-        if stream["name"] in stream_names:
-            stream["pdb_map"][0]["reliability"] = reliability
-
-    with open(f"data/simulations/streams_{t}.json", "w") as f:
-        json.dump(d, f, indent=4)
-
-
-def build_benchmark(rel: float, jitter=WT_JITTER, pdc=0, name=""):
-    import agv_network_builder as agv
-
-    agv.WT_PCP = [7]
+def build_benchmark():
     args = [
         "-agv_wt_out",
         str(AGV_WT_OUT),
@@ -60,35 +38,45 @@ def build_benchmark(rel: float, jitter=WT_JITTER, pdc=0, name=""):
         str(AGV_CT),
         "-core_ct",
         str(CORE_CT),
-        "-rel",
-        str(rel),
-        "-jitter",
-        str(jitter),
-        "-pdc",
-        str(pdc),
-        "-vslot",
-        "1",
         "-prefix",
-        "data/simulations",
-        "-suffix",
-        f"_{name}",
+        "data/mkfirm_simulations",
         "-q",
     ]
     benchmark_builder(args)
 
 
+def analyze_pcap(t, run=0):
+    os.makedirs("data/mkfirm_simulations/csv", exist_ok=True)
+    os.makedirs(f"data/mkfirm_simulations/csv/{t}", exist_ok=True)
+
+    args = [
+        "pcap",
+        "-t",
+        "data/mkfirm_simulations/network.json",
+        "-s",
+        "data/mkfirm_simulations/streams.json",
+        "-in",
+        f"{D6G_PATH}/simulations/mk_firm/results/{t}",
+        "-out",
+        f"data/mkfirm_simulations/csv/{t}",
+        "--suffix",
+        str(run),
+    ]
+    pcap_analysis(args)
+
+
 def generate_omnetini(t=""):
     args = [
         "-t",
-        f"data/simulations/network_{t}.json",
+        "data/mkfirm_simulations/network.json",
         "-s",
-        f"data/simulations/streams_{t}.json",
+        "data/mkfirm_simulations/streams.json",
         "-g",
-        f"data/simulations/tsn_configuration_{t}.json",
+        f"data/mkfirm_simulations/{t}.json",
         "-ned",
-        "data/simulations/network.ned",
+        "data/mkfirm_simulations/network.ned",
         "-ini",
-        f"data/simulations/omnetpp_{t}.ini",
+        f"data/mkfirm_simulations/omnetpp_{t}.ini",
         "--scenario",
         t,
         "--package_name",
@@ -101,78 +89,49 @@ def generate_omnetini(t=""):
         str(REPETITIONS),
         "--histogram_directory",
         "histograms",
+        "--delay_outliers",
     ]
     omnetpp_generator(args)
 
 
-def get_expected_arrival_interval(t):
-    with open(f"data/simulations/tsn_configuration_{t}.json", "r") as f:
-        d = dict(json.load(f))
-        return d["LISTENERS"]
-
-
-def get_talker_offsets(t):
-    with open(f"data/simulations/tsn_configuration_{t}.json", "r") as f:
-        d = dict(json.load(f))
-        return d["TALKERS"]
-
-
-def strip_psfp(t=""):
-    with open(f"data/simulations/tsn_configuration_{t}.json", "r") as f:
-        d = dict(json.load(f))
-    d["PSFP"] = {}
-    with open(f"data/simulations/tsn_configuration_{t}.json", "w") as f:
-        json.dump(d, f, indent=4)
-
-
 def generate_full_omnetini():
-    if not os.path.exists("data/simulations"):
-        os.mkdir("data/simulations")
-    build_benchmark(LOW_RELIABILITY, JITTER, 0, "FIPS")
-    build_benchmark(0.5, JITTER, 0.5, "SCALAR_MEDIAN")
-    build_benchmark(1, JITTER, 1, "SCALAR_MAX")
+    os.makedirs("data/mkfirm_simulations", exist_ok=True)
 
-    for t in SIMULATIONS:
-        change_reliability(t, HIGH_CRITICALITY_STREAMS, HIGH_RELIABILITY)
-
+    build_benchmark()
     cwd = os.getcwd()
     os.chdir("release")
-    handles = []
-    for t in ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]:
-        handles.append(
-            subprocess.Popen(
-                [
-                    "./benchmarks/heuristic",
-                    "-n",
-                    f"../data/simulations/network_{t}.json",
-                    "-s",
-                    f"../data/simulations/streams_{t}.json",
-                    "-o",
-                    f"../data/simulations/tsn_configuration_{t}.json",
-                ],
-                stdout=subprocess.PIPE,
-            )
-        )
+    handle = subprocess.Popen(
+        [
+            "./benchmarks/mk_firm",
+            "-n",
+            "../data/mkfirm_simulations/network.json",
+            "-s",
+            "../data/mkfirm_simulations/streams.json",
+            "--output_normal",
+            "../data/mkfirm_simulations/tsn_configuration.json",
+            "--output_mkfirm",
+            "../data/mkfirm_simulations/mkfirm_configuration.json",
+        ],
+        stdout=subprocess.PIPE,
+    )
+    handle.communicate()
 
-    for handle in handles:
-        handle.communicate()
-
+    # prepare simulation
     os.chdir(cwd)
-    strip_psfp("SCALAR_MEDIAN")
-    strip_psfp("SCALAR_MAX")
-    if not os.path.exists(f"{D6G_PATH}/simulations/{PACKAGE_NAME}"):
-        os.mkdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
+    os.makedirs(f"{D6G_PATH}/simulations/{PACKAGE_NAME}", exist_ok=True)
     shutil.copytree(
         "data/histograms",
         f"{D6G_PATH}/simulations/{PACKAGE_NAME}/histograms",
         dirs_exist_ok=True,
     )
-    for t in ["FIPS", "SCALAR_MEDIAN", "SCALAR_MAX"]:
+
+    # generate network.ned and omnetpp.ini
+    for t in SIMULATIONS:
         generate_omnetini(t)
         STREAM_TO_APPS[t] = STREAM_TO_MODULE_MAP.copy()
         for f in ["network.ned", f"omnetpp_{t}.ini"]:
             shutil.copy(
-                f"data/simulations/{f}",
+                f"data/mkfirm_simulations/{f}",
                 f"{D6G_PATH}/simulations/{PACKAGE_NAME}/{f}",
             )
 
@@ -180,12 +139,14 @@ def generate_full_omnetini():
 def run_simulation():
     generate_full_omnetini()
 
-    res = {t: {"stream": [], "min": [], "max": [], "count": []} for t in SIMULATIONS}
-    expected_arrival = {t: get_expected_arrival_interval(t) for t in SIMULATIONS}
-    talker_offset = {t: get_talker_offsets(t) for t in SIMULATIONS}
+    cwd = os.getcwd()
+    os.makedirs(f"{D6G_PATH}/simulations/{PACKAGE_NAME}", exist_ok=True)
 
     os.chdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
     for repetition in range(int(REPETITIONS / SIM_BATCHES)):
+        print(
+            f"Running Simulations: {repetition * SIM_BATCHES} - {(repetition + 1) * SIM_BATCHES-1}"
+        )
         handles = []
         for t, r1 in itertools.product(SIMULATIONS, range(SIM_BATCHES)):
             handles.append(
@@ -213,59 +174,14 @@ def run_simulation():
         for handle in handles:
             handle.communicate()
 
+        os.chdir(cwd)
         for t, r1 in itertools.product(SIMULATIONS, range(SIM_BATCHES)):
-            result_files = [
-                f"results/{t}-#{repetition * SIM_BATCHES + r1}.vec",
-                f"results/{t}-#{repetition * SIM_BATCHES + r1}.sca",
-            ]
-            r = results.read_result_files(
-                result_files, "name =~ meanBitLifeTimePerPacket:vector"
-            )
-            df = results.get_results(r, row_types=["vector"])
-            if not res[t]["stream"]:
-                res[t]["stream"] = list(STREAM_TO_APPS[t].keys())
-                res[t]["min"] = [
-                    [math.inf] * len(STREAM_TO_APPS[t][a]) for a in res[t]["stream"]
-                ]
-                res[t]["max"] = [
-                    [0] * len(STREAM_TO_APPS[t][a]) for a in res[t]["stream"]
-                ]
-                res[t]["count"] = [
-                    [0] * len(STREAM_TO_APPS[t][a]) for a in res[t]["stream"]
-                ]
+            analyze_pcap(t, repetition * SIM_BATCHES + r1)
 
-            for stream_id, (stream, apps) in enumerate(STREAM_TO_APPS[t].items()):
-                for i, app in enumerate(apps):
-                    if app not in list(df["module"]):
-                        # omnet does not populate list if no frames arrived at all
-                        continue
-                    j = list(df["module"]).index(app)
-                    arrival_times = df["vecvalue"][j]
-                    res[t]["max"][stream_id][i] = round(
-                        max(max(arrival_times), res[t]["max"][stream_id][i] / 1000)
-                        * 1000,
-                        3,
-                    )
-                    res[t]["min"][stream_id][i] = round(
-                        min(min(arrival_times), res[t]["min"][stream_id][i] / 1000)
-                        * 1000,
-                        3,
-                    )
-                    for latency in arrival_times:
-                        rx = talker_offset[t][f"{stream}#{i}"] + round(latency * 1e9)
-                        if (
-                            expected_arrival[t][f"{stream}#{i}"][0] <= rx
-                            and rx <= expected_arrival[t][f"{stream}#{i}"][1]
-                        ):
-                            res[t]["count"][stream_id][i] += 1
-                        else:
-                            pass
-
-        for t in SIMULATIONS:
-            print("\n", t, "\n", "-" * 50)
-            print(pd.DataFrame(data=res[t]).to_string())
-
+        os.chdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
         shutil.rmtree("results")
+
+    os.chdir(cwd)
 
 
 if __name__ == "__main__":
