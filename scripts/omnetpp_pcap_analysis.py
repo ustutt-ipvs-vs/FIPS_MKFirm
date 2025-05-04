@@ -254,7 +254,7 @@ def stream_analysis(topology, streams):
 
 
 def latest_transmission_start(stream, hop, tsn_config, device_map, link_map):
-    hop_name = f"[{device_map[hop[0]]["name"]},{device_map[hop[1]]["name"]}]"
+    hop_name = f"[{device_map[hop[0]]['name']},{device_map[hop[1]]['name']}]"
     exact_transmission = tsn_config["EXACT"][stream["name"]][hop_name]
     gcl = tsn_config["GCL"][hop_name]
     latest_transmission_start = -gcl["offset"]
