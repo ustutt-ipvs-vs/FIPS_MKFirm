@@ -190,6 +190,7 @@ histograms_ini_header = """
 random_delay_ini_header = """
 *.detcom*.dstt[*].hasExprDelayer = true
 *.detcom*.dstt[*].delaysUplink = [{delays}]
+*.detcom*.dstt[*].delaysDownlink = [{delays}]
 """
 
 stream_delay_ini_header = """{{packetFilter: expr(udp.destPort == {port}), delay: "uniform(0.1ms, {max_delay}ms)"}}"""

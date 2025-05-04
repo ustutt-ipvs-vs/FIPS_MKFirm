@@ -156,64 +156,101 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
             port += 1
 
 
-def single_stream_analysis(topology, streams, stream_name):
-    plt.style.use("data/ieee.mplstyle")
-
-    test_cases = {
-        "MKFirm": {
-            "csv_results": "data/mkfirm_simulations/csv/mkfirm_configuration",
-            "output": "data/mkfirm_simulations/csv/mkfirm_configuration_reduced",
-        },
-        "Normal": {
-            "csv_results": "data/mkfirm_simulations/csv/tsn_configuration",
-            "output": "data/mkfirm_simulations/csv/tsn_configuration_reduced",
-        },
-    }
-
+def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
     XMIN = 0
     XMAX = 31
     XSTEP = 0.1
 
+    k = len(stream["mk_firm"]["mask"])
+
     for test_case, config in test_cases.items():
         csv_dir = config["csv_results"]
-        files = [f for f in os.listdir(csv_dir) if stream_name in f]
+        files = [f for f in os.listdir(csv_dir) if stream["name"] in f]
+
         xvalues = []
-        yvalues = []
+        yvalues = {"normal": [], "elevated": []}
+
         reduced_x = np.arange(XMIN, XMAX, XSTEP)
-        reduced_y = [[] for _ in reduced_x]
+        reduced_y = {
+            "normal": [[] for _ in reduced_x],
+            "elevated": [[] for _ in reduced_x],
+        }
+
         for file in files:
             with open(os.path.join(csv_dir, file)) as csv_file:
                 csv_reader = csv.DictReader(csv_file)
                 for row in csv_reader:
                     if float(row["5G Delay"]) < 0:
                         continue
+                    i = int(row[""])
                     xvalues.append(float(row["5G Delay"]))
-                    yvalues.append(float(row["E2E Delay"]))
-
-                    i = round((xvalues[-1] - XMIN) / XSTEP)
-                    reduced_y[i].append(yvalues[-1])
+                    x = round((xvalues[-1] - XMIN) / XSTEP)
+                    if stream["mk_firm"]["mask"][i % k] == "1":
+                        yvalues["elevated"].append(float(row["E2E Delay"]))
+                        reduced_y["elevated"][x].append(yvalues["elevated"][-1])
+                    else:
+                        yvalues["normal"].append(float(row["E2E Delay"]))
+                        reduced_y["normal"][x].append(yvalues["normal"][-1])
 
         os.makedirs(config["output"], exist_ok=True)
 
-        with open(os.path.join(config["output"], "{stream_name}.csv"), "w") as csvfile:
-            fieldnames = ["x", "y"]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
+        for t in ["normal", "elevated"]:
+            plt_x = []
+            plt_y = []
+            with open(
+                os.path.join(config["output"], f"{stream['name']}_{t}.csv"), "w"
+            ) as csvfile:
+                fieldnames = ["x", "y"]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
 
-            for i, x in enumerate(reduced_x):
-                if not reduced_y[i]:
-                    continue
-                yvals = [min(reduced_y[i]), np.median(reduced_y[i]), max(reduced_y[i])]
-                for y in yvals:
-                    writer.writerow({"x": x, "y": y})
+                for i, x in enumerate(reduced_x):
+                    if not reduced_y[t][i]:
+                        continue
+                    reduced_y[t][i].sort()
+                    yvals = [
+                        min(reduced_y[t][i]),
+                        reduced_y[t][i][int(len(reduced_y[t][i]) / 2)],
+                        max(reduced_y[t][i]),
+                    ]
+                    for y in yvals:
+                        writer.writerow({"x": x, "y": y})
+                        plt_x.append(x)
+                        plt_y.append(y)
 
-        plt.scatter(xvalues, yvalues, s=1, label=test_case)
+            subfig_ax[config["subfigure"]].scatter(plt_x, plt_y, s=1, label=t)
+            subfig_ax[config["subfigure"]].set_xlabel("5G Port-to-Port Delay [ms]")
+            subfig_ax[config["subfigure"]].set_ylabel("E2E Delay [ms]")
 
-    plt.ylim(ymin=-2, ymax=40)
-    plt.xlabel("5G Port-to-Port Delay [ms]")
-    plt.ylabel("E2E Delay [ms]")
-    plt.legend()
-    plt.show()
+
+def stream_analysis(topology, streams):
+    plt.style.use("data/ieee.mplstyle")
+
+    test_cases = {
+        "MKFirm": {
+            "csv_results": "data/mkfirm_simulations/csv/mkfirm_configuration",
+            "output": "data/mkfirm_simulations/csv/mkfirm_configuration_reduced",
+            "subfigure": 0,
+        },
+        "Normal": {
+            "csv_results": "data/mkfirm_simulations/csv/tsn_configuration",
+            "output": "data/mkfirm_simulations/csv/tsn_configuration_reduced",
+            "subfigure": 1,
+        },
+    }
+
+    os.makedirs("data/mkfirm_simulations/plots", exist_ok=True)
+
+    for stream in streams:
+        print(stream["name"])
+        if "mk_firm" in stream and "AGV0_CORE" in stream["name"]:
+            subfigs, ax = plt.subplots(1, 2, layout="constrained", figsize=(10, 4))
+            mkfirm_stream_analysis(topology, stream, test_cases, ax)
+            plt.savefig(
+                f"data/mkfirm_simulations/plots/{stream['name']}.png",
+                bbox_inches="tight",
+            )
+            plt.close()
 
 
 def latest_transmission_start(stream, hop, tsn_config, device_map, link_map):
@@ -361,7 +398,6 @@ def main(raw_args=None):
     )
     subparser2.add_argument("-t", "--topology_input", default="data/network.json")
     subparser2.add_argument("-s", "--streams_input", default="data/streams.json")
-    subparser2.add_argument("-n", "--stream_name", default="AGV0_CORE_00")
 
     subparsers.add_parser(
         "violations",
@@ -387,7 +423,7 @@ def main(raw_args=None):
     elif args.subroutine == "latency":
         topology = parse_json_file(args.topology_input)
         streams = parse_json_file(args.streams_input)
-        single_stream_analysis(topology, streams, args.stream_name)
+        stream_analysis(topology, streams)
     elif args.subroutine == "violations":
         qos_violation_analysis()
 

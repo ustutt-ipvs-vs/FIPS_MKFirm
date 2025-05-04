@@ -4,6 +4,9 @@ ARG INSTALL_OMNETPP="true"
 
 WORKDIR /usr/src
 
+ENV CC=/usr/local/bin/gcc
+ENV CXX=/usr/local/bin/g++
+
 RUN apt-get update && apt-get -y install cmake nlohmann-json3-dev python3-venv
 RUN python3 -m venv /venv
 
