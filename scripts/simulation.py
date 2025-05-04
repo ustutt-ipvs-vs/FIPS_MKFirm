@@ -10,6 +10,7 @@ import math
 import sys
 import pandas as pd
 from omnetpp.scave import results
+from multiprocessing import Process
 
 AGV_WT_OUT = 40
 AGV_WT_IN = 40
@@ -18,7 +19,7 @@ CORE_CT = 10
 
 REPETITIONS = 1000
 SIM_TIME = 20  # 20s = 1000 hypercycles
-SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
+SIM_BATCHES = 25  # run X repetitions of each simulation in parallel
 
 PACKAGE_NAME = "mk_firm"
 D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
@@ -175,8 +176,21 @@ def run_simulation():
             handle.communicate()
 
         os.chdir(cwd)
+
+        print(" -> evaluating results")
+        processes = []
         for t, r1 in itertools.product(SIMULATIONS, range(SIM_BATCHES)):
-            analyze_pcap(t, repetition * SIM_BATCHES + r1)
+            p = Process(
+                target=analyze_pcap,
+                args=(
+                    t,
+                    repetition * SIM_BATCHES + r1,
+                ),
+            )
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
 
         os.chdir(f"{D6G_PATH}/simulations/{PACKAGE_NAME}")
         shutil.rmtree("results")
