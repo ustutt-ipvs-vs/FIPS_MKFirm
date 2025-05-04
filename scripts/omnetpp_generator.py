@@ -275,6 +275,12 @@ mkfirm_psfp_ini = """*.{device}.bridging.streamFilter.ingress.numMKFirmStreams =
 STREAM_TO_MODULE_MAP = {}
 
 
+def link_id_to_name(link, topology):
+    return (
+        f"[{topology['nodes'][link[0]]['name']},{topology['nodes'][link[1]]['name']}]"
+    )
+
+
 def build_ini_file(
     tsn_config,
     streams,
@@ -350,16 +356,24 @@ def build_ini_file(
             device_map[stream["target"]]["app"] += 1
             device_map[stream["source"]]["app"] += 1
             stream["ports"].append(PORT)
-            ini_stream_delays.append(
-                stream_delay_ini_header.format(
-                    port=PORT,
-                    max_delay=(
-                        stream["period"] / 1e6
-                        if PORT % 2 == 0
-                        else 1.5 * stream["period"] / 1e6
-                    ),
+            if stream["pdb_map"] is not None:
+                assert len(stream["pdb_map"]) == 1
+                first = tsn_config["TALKERS"][f"{stream['name']}#{frame}"]
+                wireless_hop = link_id_to_name(stream["pdb_map"][0]["link"], topology)
+                offset = tsn_config["EXACT"][f"{stream['name']}#{frame}"][wireless_hop][
+                    1
+                ]
+
+                ini_stream_delays.append(
+                    stream_delay_ini_header.format(
+                        port=PORT,
+                        max_delay=(
+                            (first + stream["period"] - offset) / 1e6
+                            if PORT % 2 == 0
+                            else 1.5 * stream["period"] / 1e6
+                        ),
+                    )
                 )
-            )
             PORT += 1
 
     if delay_outliers:
