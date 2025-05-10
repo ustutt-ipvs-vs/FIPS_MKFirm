@@ -175,6 +175,8 @@ def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
             "normal": [[] for _ in reduced_x],
             "elevated": [[] for _ in reduced_x],
         }
+        faults = []
+        faulty = False
 
         for file in files:
             with open(os.path.join(csv_dir, file)) as csv_file:
@@ -184,13 +186,21 @@ def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
                         continue
                     i = int(row[""])
                     xvalues.append(float(row["5G Delay"]))
+                    if 1e6 * xvalues[-1] > stream["period"]:
+                        faulty = True
                     x = round((xvalues[-1] - XMIN) / XSTEP)
                     if stream["mk_firm"]["mask"][i % k] == "1":
+                        if float(row["E2E Delay"]) < 0 and test_case == "MKFirm":
+                            faults.append(f"{file} {row}")
                         yvalues["elevated"].append(float(row["E2E Delay"]))
                         reduced_y["elevated"][x].append(yvalues["elevated"][-1])
                     else:
                         yvalues["normal"].append(float(row["E2E Delay"]))
                         reduced_y["normal"][x].append(yvalues["normal"][-1])
+
+        if not faulty:
+            for error in faults:
+                print(error)
 
         os.makedirs(config["output"], exist_ok=True)
 
@@ -224,7 +234,7 @@ def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
 
 
 def stream_analysis(topology, streams):
-    plt.style.use("data/ieee.mplstyle")
+    #plt.style.use("data/ieee.mplstyle")
 
     test_cases = {
         "MKFirm": {
