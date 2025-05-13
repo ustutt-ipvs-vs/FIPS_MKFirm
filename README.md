@@ -1,3 +1,8 @@
+# Full Interleaving Packet Scheduling (FIPS)
+FIPS is a wireless-friendly TSN scheduler that provides formal end-to-end QoS guarantees at scale.
+This repository contains a proof-of-concept implementation and provides Docker images to facilitate reproducibility of our evaluation results.
+Feel free to contact the [author](mailto:simon.egger@ipvs.uni-stuttgart.de) or open an issue if you have any questions.
+
 # Building the Project 
 In case you have trouble building C++23 projects in general, please refer to the [detailed building guide](documentation/build.md).
 
@@ -18,23 +23,21 @@ $ podman built -t fips .
 this will download the latest gcc docker image, install the required packages, and setup a python virtual environment.
 You can then open a shell in the container with
 ```bash
-$ podman -v .:/usr/src/fips -it fips
+$ podman run -v .:/usr/src/fips -it fips
 ```
-Then, commence with the same commands as with the [Local Build](#markdown-header-local-build).
+Then, commence with the same commands as with the [Local Build](#local-build).
 
 # Reproduce the Evaluation Results
 ## Scalability results
 ```bash
-$ podman -v .:/usr/src/fips -it fips
-/usr/src# cd fips
+$ podman run -v .:/usr/src/fips -it fips
 /usr/src/fips# python scripts/scalability.py
 ```
 
 ## Simulation results
 ```bash
-$ podman -v .:/usr/src/fips -it fips
+$ podman run -v .:/usr/src/fips -it fips
 /usr/src# source omnetpp/omnetpp/setenv
-/usr/src# cd fips
 /usr/src/fips# python scripts/simulation.py
 ```
 
@@ -53,7 +56,7 @@ This will produce the following network:
 ![data/network.png](./data/network.png)
 
 By default, the resulting network.json and streams.json file will be stored in *./data*.
-Loading the network and streams in *fips* is then as simple as calling:
+Loading the network and streams in FIPS is then as simple as calling:
 ```cpp
   auto network = NetworkTopology(network_file);
   auto stream_storage = StreamStorage(stream_file, network);
@@ -77,4 +80,18 @@ The TSN configuration (GCLs, PSFP configuration, and additional metadata) can be
   auto tsn_configuration = g.derive_tsn_configuration();
   tsn_configuration.add_meta_data("field", "value");
   tsn_configuration.dump_to_file(tsn_config_file);
+```
+
+# Cite this Project
+There is currently a preprint available (this will later be updated to proceedings of IWQoS 2025):
+```
+@misc{egger2025endtoendreliabilitywirelessieee,
+      title={End-to-End Reliability in Wireless IEEE 802.1Qbv Time-Sensitive Networks}, 
+      author={S. Egger and J. Gross and J. Sachs and G. P. Sharma and C. Becker and F. Dürr},
+      year={2025},
+      eprint={2502.11595},
+      archivePrefix={arXiv},
+      primaryClass={cs.NI},
+      url={https://arxiv.org/abs/2502.11595}, 
+}
 ```
