@@ -1,5 +1,3 @@
-# libtsndgm
-
 # Building the Project 
 In case you have trouble building C++23 projects in general, please refer to the [detailed building guide](documentation/build.md).
 
@@ -15,29 +13,29 @@ $ make -j
 This is the recommended way of deployment if you simply want to reproduce the evaluation results and your compiler does not support C++23.
 Start by building the image via:
 ```bash
-$ podman built -t libtsndgm .
+$ podman built -t fips .
 ```
 this will download the latest gcc docker image, install the required packages, and setup a python virtual environment.
 You can then open a shell in the container with
 ```bash
-$ podman -v .:/usr/src/libtsndgm -it libtsndgm
+$ podman -v .:/usr/src/fips -it fips
 ```
 Then, commence with the same commands as with the [Local Build](#markdown-header-local-build).
 
 # Reproduce the Evaluation Results
 ## Scalability results
 ```bash
-$ podman -v .:/usr/src/libtsndgm -it libtsndgm
-/usr/src# cd libtsndgm
-/usr/src/libtsndgm# python scripts/scalability.py
+$ podman -v .:/usr/src/fips -it fips
+/usr/src# cd fips
+/usr/src/fips# python scripts/scalability.py
 ```
 
 ## Simulation results
 ```bash
-$ podman -v .:/usr/src/libtsndgm -it libtsndgm
+$ podman -v .:/usr/src/fips -it fips
 /usr/src# source omnetpp/omnetpp/setenv
-/usr/src# cd libtsndgm
-/usr/src/libtsndgm# python scripts/simulation.py
+/usr/src# cd fips
+/usr/src/fips# python scripts/simulation.py
 ```
 
 # Quick Library Usage Tutorial
@@ -55,7 +53,7 @@ This will produce the following network:
 ![data/network.png](./data/network.png)
 
 By default, the resulting network.json and streams.json file will be stored in *./data*.
-Loading the network and streams in *libtsndgm* is then as simple as calling:
+Loading the network and streams in *fips* is then as simple as calling:
 ```cpp
   auto network = NetworkTopology(network_file);
   auto stream_storage = StreamStorage(stream_file, network);
