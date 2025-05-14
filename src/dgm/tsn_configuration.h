@@ -41,7 +41,8 @@ using ListenerConfiguration = std::map<Frame, DelayInterval>;
 
 struct CriticalPathConfiguration {
   CriticalPathConfiguration() = default;
-  CriticalPathConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order)
+  CriticalPathConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
+                            Delay /*hyper_cycle*/)
       : critical_path_(dfs, processing_order) {}
 
   constexpr auto traversal_events() { return critical_path_.traversal_events(); }

@@ -33,7 +33,8 @@ struct MKFirmConfiguration {
   MKFirmPSFPConfiguration mkfirm_psfp_config;
 
   MKFirmConfiguration() = default;
-  MKFirmConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order) noexcept;
+  MKFirmConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
+                      Delay hyper_cycle) noexcept;
 
   constexpr auto traversal_events() {
     return critical_path_.traversal_events().add(
@@ -53,6 +54,7 @@ struct MKFirmConfiguration {
                                   nlohmann::json &&j) const noexcept -> nlohmann::json;
 
 private:
+  Delay hyper_cycle_;
   CriticalPath critical_path_;
   const ProcessingOrder *processing_order_;
   std::vector<Delay> crit_cost_;
@@ -78,6 +80,7 @@ private:
     const auto &v = *std::get<Vertex *>(visitor);
     if (v.id > SINK_ID) {
       prolongation(v);
+      add_mk_firm_psfp(v);
     }
     if (std::ranges::find(v.route_succ, &processing_order_->sink()) != v.route_succ.end()) {
       return check_stable_qos(v);
@@ -109,6 +112,7 @@ private:
   }
 
   void add_mk_firm_psfp(Link link) noexcept;
+  void add_mk_firm_psfp(const Vertex &v) noexcept;
 
   [[nodiscard]] auto mk_firm_streams_at(Link link) const noexcept -> Generator<const Stream *>;
   [[nodiscard]] auto mk_firm_stream_diff_at(Link link1, Link link2) const noexcept

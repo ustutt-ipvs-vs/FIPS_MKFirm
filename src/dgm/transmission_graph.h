@@ -50,7 +50,7 @@ struct TransmissionGraph {
 
   template <typename Configuration = CriticalPathConfiguration>
   auto derive_tsn_configuration() -> TSNConfiguration<Configuration> {
-    Configuration config(dfs_, processing_order_);
+    Configuration config(dfs_, processing_order_, stream_storage_->hyper_cycle);
     return TSNConfiguration<Configuration>(dfs_, std::move(config), processing_order_, topology_,
                                            stream_storage_->hyper_cycle);
   }
