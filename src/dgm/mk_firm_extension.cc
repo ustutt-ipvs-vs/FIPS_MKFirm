@@ -81,7 +81,12 @@ void MKFirmConfiguration::update_prolongation(const Edge &e) noexcept {
 
 void MKFirmConfiguration::deferment(const Edge &e) noexcept {
   auto [u, v, _] = e;
-  crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->source->clock_resolution);
+  if (e.source->pcp < e.target->pcp) {
+    crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->source->clock_resolution);
+  } else { // e.source->pcp == e.target->pcp (special case for first hop; not covered by fifo)
+    crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->weights[MACHINE].outgoing +
+                                                        v->weights[MACHINE].incoming);
+  }
 }
 
 void MKFirmConfiguration::fault_isolation(const Edge &e) noexcept {

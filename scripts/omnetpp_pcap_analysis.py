@@ -112,7 +112,14 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
                 ) as f:
                     csv_writer = csv.writer(f, delimiter=",")
                     csv_writer.writerow(
-                        ["", "5G Delay", "TT Arrival", "E2E Delay", "Max PCP", "Final PCP", "Arrivals", "Transmissions"]
+                        [
+                            "",
+                            "5G Delay",
+                            "TT Arrival",
+                            "E2E Delay",
+                            "Max PCP",
+                            "Final PCP",
+                        ]
                     )
 
                     for j in range(N):
@@ -124,19 +131,19 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
                             stream_res["arrivals"][listener][j]
                             - stream_res["transmissions"][talker][j]
                         )
-                        arrivals = ";".join([f"{device_map[h[1]]['name']}:{stream_res['arrival'][h[1]]}" for h in stream["route"]])
-                        transmissions = ";".join([f"{device_map[h[0]]['name']}:{stream_res['transmissions'][h[0]]}" for h in stream["route"]])
 
                         csv_writer.writerow(
                             [
                                 j,
                                 wireless_delay if wireless_delay > 0 else -1,
-                                stream_res["arrivals"][tt2][j] if wireless_delay > 0 else -1,
+                                (
+                                    stream_res["arrivals"][tt2][j]
+                                    if wireless_delay > 0
+                                    else -1
+                                ),
                                 ete_delay if ete_delay > 0 else -1,
                                 stream_res["max_pcp"][j],
                                 stream_res["final_pcp"][j],
-                                f"{{{arrivals}}}",
-                                f"{{{transmissions}}}"
                             ]
                         )
             else:
@@ -248,7 +255,7 @@ def wired_stream_analysis(topology, stream, test_cases):
             with open(os.path.join(csv_dir, file)) as csv_file:
                 csv_reader = csv.DictReader(csv_file)
                 for row in csv_reader:
-                    y_values.append(row["E2E Delay"])
+                    y_values.append(float(row["E2E Delay"]))
 
         os.makedirs(config["output"], exist_ok=True)
         with open(
@@ -272,7 +279,7 @@ def wired_stream_analysis(topology, stream, test_cases):
 
 
 def stream_analysis(topology, streams):
-    #plt.style.use("data/ieee.mplstyle")
+    # plt.style.use("data/ieee.mplstyle")
 
     test_cases = {
         "MKFirm": {
