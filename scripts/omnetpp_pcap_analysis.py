@@ -112,7 +112,7 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
                 ) as f:
                     csv_writer = csv.writer(f, delimiter=",")
                     csv_writer.writerow(
-                        ["", "5G Delay", "E2E Delay", "Max PCP", "Final PCP"]
+                        ["", "5G Delay", "TT Arrival", "E2E Delay", "Max PCP", "Final PCP", "Arrivals", "Transmissions"]
                     )
 
                     for j in range(N):
@@ -124,14 +124,19 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
                             stream_res["arrivals"][listener][j]
                             - stream_res["transmissions"][talker][j]
                         )
+                        arrivals = ";".join([f"{device_map[h[1]]['name']}:{stream_res['arrival'][h[1]]}" for h in stream["route"]])
+                        transmissions = ";".join([f"{device_map[h[0]]['name']}:{stream_res['transmissions'][h[0]]}" for h in stream["route"]])
 
                         csv_writer.writerow(
                             [
                                 j,
                                 wireless_delay if wireless_delay > 0 else -1,
+                                stream_res["arrivals"][tt2][j] if wireless_delay > 0 else -1,
                                 ete_delay if ete_delay > 0 else -1,
                                 stream_res["max_pcp"][j],
                                 stream_res["final_pcp"][j],
+                                f"{{{arrivals}}}",
+                                f"{{{transmissions}}}"
                             ]
                         )
             else:
@@ -175,6 +180,8 @@ def wireless_stream_analysis(topology, stream, test_cases, subfig_ax):
             "normal": [[] for _ in reduced_x],
             "elevated": [[] for _ in reduced_x],
         }
+        faults = []
+        faulty = False
 
         for file in files:
             with open(os.path.join(csv_dir, file)) as csv_file:
@@ -184,13 +191,21 @@ def wireless_stream_analysis(topology, stream, test_cases, subfig_ax):
                         continue
                     i = int(row[""])
                     xvalues.append(float(row["5G Delay"]))
+                    if 1e6 * xvalues[-1] > stream["period"]:
+                        faulty = True
                     x = round((xvalues[-1] - XMIN) / XSTEP)
                     if stream["mk_firm"]["mask"][i % k] == "1":
+                        if float(row["E2E Delay"]) < 0 and test_case == "MKFirm":
+                            faults.append(f"{file} {row}")
                         yvalues["elevated"].append(float(row["E2E Delay"]))
                         reduced_y["elevated"][x].append(yvalues["elevated"][-1])
                     else:
                         yvalues["normal"].append(float(row["E2E Delay"]))
                         reduced_y["normal"][x].append(yvalues["normal"][-1])
+
+        if not faulty:
+            for error in faults:
+                print(error)
 
         os.makedirs(config["output"], exist_ok=True)
 
@@ -257,7 +272,7 @@ def wired_stream_analysis(topology, stream, test_cases):
 
 
 def stream_analysis(topology, streams):
-    plt.style.use("data/ieee.mplstyle")
+    #plt.style.use("data/ieee.mplstyle")
 
     test_cases = {
         "MKFirm": {

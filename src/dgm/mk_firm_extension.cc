@@ -35,10 +35,11 @@ void TokenStepFunction::extend(Delay period) {
   }
 }
 
-MKFirmConfiguration::MKFirmConfiguration(DFSTraversal &dfs,
-                                         const ProcessingOrder &processing_order) noexcept
-    : critical_path_(dfs, processing_order), processing_order_(&processing_order),
-      crit_cost_(processing_order.total_operations), mu_(processing_order.total_operations) {}
+MKFirmConfiguration::MKFirmConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
+                                         Delay hyper_cycle) noexcept
+    : hyper_cycle_(hyper_cycle), critical_path_(dfs, processing_order),
+      processing_order_(&processing_order), crit_cost_(processing_order.total_operations),
+      mu_(processing_order.total_operations) {}
 
 auto MKFirmConfiguration::dump_to_json(const NetworkTopology *topology,
                                        nlohmann::json &&j) const noexcept -> nlohmann::json {
@@ -114,16 +115,20 @@ auto MKFirmConfiguration::check_stable_qos(const Vertex &v) const noexcept -> Tr
   return CONTINUE;
 }
 
-void MKFirmConfiguration::add_mk_firm_psfp(Link link) noexcept {
-  for (const auto *stream : mk_firm_streams_at(link)) {
-    for (FrameIndex c = 0; c < stream->mk_firm.k(); c++) {
+void MKFirmConfiguration::add_mk_firm_psfp(const Vertex &v) noexcept {
+  Delay psfp_closing_time = mu_[v.id] + v.weights.pdb.d_total.max;
+
+  for (const auto &frame : v.frames) {
+    const auto *stream = frame.stream;
+    FrameIndex n = hyper_cycle_ / stream->period;
+    for (FrameIndex c = frame.id; c < std::lcm(n, stream->mk_firm.k()); c += n) {
       if (!stream->mk_firm.mask[c % stream->mk_firm.k()]) {
         continue;
       }
 
-      mkfirm_psfp_config[link.target].push_back(MKFirmPSFPGate{
+      mkfirm_psfp_config[v.link().target].push_back(MKFirmPSFPGate{
           .frames = {Frame{.stream = stream, .id = c}},
-          .open = c * stream->period,
+          .open = (c * stream->period) + psfp_closing_time,
           .close = (c * stream->period) + stream->mk_firm.e2e_latency,
       });
     }
@@ -163,7 +168,6 @@ auto MKFirmConfiguration::token_bucket(const Vertex &v) noexcept -> const TokenB
     auto it =
         token_bucket_.insert({link, compute_token_bucket(link_prop, mk_firm_streams_at(link))})
             .first;
-    add_mk_firm_psfp(link);
     return it->second;
   }
   return token_bucket_.at(link);
