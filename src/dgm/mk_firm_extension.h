@@ -61,6 +61,7 @@ private:
   std::map<std::pair<Link, Link>, TokenBucket> token_bucket_diff_;
 
   void prolongation(const Vertex &v) noexcept;
+  void update_prolongation(const Edge &e) noexcept;
   void deferment(const Edge &e) noexcept;
   void fault_isolation(const Edge &e) noexcept;
   void sequential_transmission(const Edge &e) noexcept;
@@ -90,8 +91,10 @@ private:
 
     switch (e.edge_type) {
     case MACHINE:
-      if (e.source->pcp <= e.target->pcp) {
+      if (e.source->pcp < e.target->pcp) {
         deferment(e);
+      } else {
+        update_prolongation(e);
       }
       break;
     case FIFO:

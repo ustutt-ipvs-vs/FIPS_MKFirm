@@ -66,18 +66,21 @@ void MKFirmConfiguration::prolongation(const Vertex &v) noexcept {
   // are multiple v.frames).
   Bits const elevated_traffic =
       (TicksPerSec * BitsPerByte * tb.bucket_size) + (v.weights.pdb.d_trans.max * tb.token_rate);
-  mu_[v.id] = crit_cost_[v.id] + (elevated_traffic / (tb.link_data_rate - tb.token_rate));
+  mu_[v.id] = std::max(mu_[v.id],
+                       crit_cost_[v.id] + (elevated_traffic / (tb.link_data_rate - tb.token_rate)));
+}
+
+void MKFirmConfiguration::update_prolongation(const Edge &e) noexcept {
+  auto [u, v, _] = e;
+  const auto &tb = token_bucket(*v);
+  Bits const elevated_traffic = v->weights.pdb.d_trans.max * tb.token_rate;
+  mu_[v->id] =
+      std::max(mu_[v->id], mu_[u->id] + (elevated_traffic / (tb.link_data_rate - tb.token_rate)));
 }
 
 void MKFirmConfiguration::deferment(const Edge &e) noexcept {
   auto [u, v, _] = e;
-
-  if (e.source->pcp < e.target->pcp) {
-    crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->source->clock_resolution);
-  } else { // e.source->pcp == e.target->pcp
-    crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->weights[MACHINE].outgoing +
-                                                        v->weights[MACHINE].incoming);
-  }
+  crit_cost_[v->id] = std::max(crit_cost_[v->id], mu_[u->id] + u->source->clock_resolution);
 }
 
 void MKFirmConfiguration::fault_isolation(const Edge &e) noexcept {

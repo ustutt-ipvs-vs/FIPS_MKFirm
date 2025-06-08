@@ -156,7 +156,7 @@ def parse_pcap(topology, streams, pcap_dir, csv_dir, suffix):
             port += 1
 
 
-def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
+def wireless_stream_analysis(topology, stream, test_cases, subfig_ax):
     XMIN = 0
     XMAX = 31
     XSTEP = 0.1
@@ -223,6 +223,39 @@ def mkfirm_stream_analysis(topology, stream, test_cases, subfig_ax):
             subfig_ax[config["subfigure"]].set_ylabel("E2E Delay [ms]")
 
 
+def wired_stream_analysis(topology, stream, test_cases):
+    for test_case, config in test_cases.items():
+        csv_dir = config["csv_results"]
+        files = [f for f in os.listdir(csv_dir) if stream["name"] in f]
+
+        y_values = []
+        for file in files:
+            with open(os.path.join(csv_dir, file)) as csv_file:
+                csv_reader = csv.DictReader(csv_file)
+                for row in csv_reader:
+                    y_values.append(row["E2E Delay"])
+
+        os.makedirs(config["output"], exist_ok=True)
+        with open(
+            os.path.join(config["output"], f"{stream['name']}.csv"), "w"
+        ) as csvfile:
+            fieldnames = ["min", "med", "max"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            reduced_y = {
+                "min": min(y_values),
+                "med": y_values[int(len(y_values) / 2)],
+                "max": max(y_values),
+            }
+            writer.writerow(reduced_y)
+
+            if (
+                reduced_y["min"] < 0
+                or reduced_y["max"] > stream["stable_qos"]["latency"]
+            ):
+                print(f"ERROR: Violation detected for {stream['name']}")
+
+
 def stream_analysis(topology, streams):
     plt.style.use("data/ieee.mplstyle")
 
@@ -243,131 +276,16 @@ def stream_analysis(topology, streams):
 
     for stream in streams:
         print(stream["name"])
-        if "mk_firm" in stream and "AGV0_CORE" in stream["name"]:
+        if "mk_firm" in stream:
             subfigs, ax = plt.subplots(1, 2, layout="constrained", figsize=(10, 4))
-            mkfirm_stream_analysis(topology, stream, test_cases, ax)
+            wireless_stream_analysis(topology, stream, test_cases, ax)
             plt.savefig(
                 f"data/mkfirm_simulations/plots/{stream['name']}.png",
                 bbox_inches="tight",
             )
             plt.close()
-
-
-def latest_transmission_start(stream, hop, tsn_config, device_map, link_map):
-    hop_name = f"[{device_map[hop[0]]['name']},{device_map[hop[1]]['name']}]"
-    exact_transmission = tsn_config["EXACT"][stream["name"]][hop_name]
-    gcl = tsn_config["GCL"][hop_name]
-    latest_transmission_start = -gcl["offset"]
-    for d in gcl["durations"]:
-        latest_transmission_start += d
-        if latest_transmission_start > exact_transmission:
-            latest_transmission_start -= 1e9 * (
-                stream["frame_size"] / link_map[f"{hop[0]}-{hop[1]}"]["data_rate"]
-            )
-            break
-    return latest_transmission_start
-
-
-def qos_violation_analysis():
-    plt.style.use("data/ieee.mplstyle")
-
-    topology = parse_json_file("data/emergency_traffic/network.json")
-    device_map = {}
-    for device in topology["nodes"]:
-        device_map[device["id"]] = device
-    link_map = {}
-    for link in topology["links"]:
-        link_map[f"{link['source']}-{link['target']}"] = link
-
-    streams = parse_json_file("data/emergency_traffic/streams.json")
-
-    test_cases = {
-        "With ET": {
-            "csv_results": "modules/simulation/enabled/csv_results",
-            "tsn_config": "data/emergency_traffic/enabled.json",
-            "5G_config": "data/emergency_traffic/5G_req_enabled.json",
-        },
-        "Without ET": {
-            "csv_results": "modules/simulation/disabled/csv_results",
-            "tsn_config": "data/emergency_traffic/disabled.json",
-            "5G_config": "data/emergency_traffic/5G_req_disabled.json",
-        },
-        "With ET (unrobust)": {
-            "csv_results": "modules/simulation/enabled1/csv_results",
-            "tsn_config": "data/emergency_traffic/enabled1.json",
-            "5G_config": "data/emergency_traffic/5G_req_enabled1.json",
-        },
-    }
-
-    results = {}
-
-    for test_case, config in test_cases.items():
-        tsn_config = parse_json_file(config["tsn_config"])
-        pdb_config = parse_json_file(config["5G_config"])
-
-        results[test_case] = {}
-
-        for stream in streams:
-            results[test_case][stream["name"]] = {"violations": 0, "count": 0}
-            wireless = stream["rti_map"] is not None
-            csv_dir = config["csv_results"]
-            files = [f for f in os.listdir(csv_dir) if stream["name"] in f]
-
-            # compute expected arrival interval at listener
-            talker_offset = latest_transmission_start(
-                stream, stream["route"][0], tsn_config, device_map, link_map
-            )
-            listener = device_map[stream["route"][-1][1]]["name"]
-            psfp_entry_n = next(
-                e
-                for e in tsn_config["PSFP"][listener]
-                if stream["name"] in e["streams"]
-            )
-            e2e = {
-                "min": psfp_entry_n["open"] - talker_offset - 1000,
-                "max": min(
-                    talker_offset + stream["e2e_latency"],
-                    psfp_entry_n["open"] - talker_offset + stream["jitter"],
-                ),
-            }
-
-            for file in files:
-                with open(os.path.join(csv_dir, file)) as csv_file:
-                    csv_reader = csv.DictReader(csv_file)
-
-                    if wireless:
-                        # get 5G packet delay budget
-                        pdb = pdb_config[stream["name"]]["pdb"]
-
-                        for row in csv_reader:
-                            results[test_case][stream["name"]]["count"] += 1
-                            delay_5g = float(row["5G Delay"]) * 1e6
-                            delay_e2e = float(row["E2E Delay"]) * 1e6
-                            if delay_5g < 0:
-                                results[test_case][stream["name"]]["violations"] += 1
-                                continue
-                            if delay_e2e < e2e["min"] or delay_e2e > e2e["max"]:
-                                if pdb["min"] <= delay_5g and delay_5g <= pdb["max"]:
-                                    results[test_case][stream["name"]][
-                                        "violations"
-                                    ] += 1
-                    else:
-                        for row in csv_reader:
-                            results[test_case][stream["name"]]["count"] += 1
-                            delay_e2e = float(row["E2E Delay"]) * 1e6
-                            if delay_e2e < e2e["min"] or delay_e2e > e2e["max"]:
-                                results[test_case][stream["name"]]["violations"] += 1
-
-            results[test_case][stream["name"]] = (
-                results[test_case][stream["name"]]["violations"]
-                / results[test_case][stream["name"]]["count"]
-            )
-
-    for test_case in test_cases:
-        worst_impairment = max(results[test_case], key=results[test_case].get)
-        print(
-            f"{test_case}: {worst_impairment} {results[test_case][worst_impairment]} "
-        )
+        else:
+            wired_stream_analysis(topology, stream, test_cases)
 
 
 def main(raw_args=None):
@@ -394,7 +312,7 @@ def main(raw_args=None):
     )
 
     subparser2 = subparsers.add_parser(
-        "latency", help="Analyze single stream from csv files"
+        "analyze", help="Analyze single stream from csv files"
     )
     subparser2.add_argument("-t", "--topology_input", default="data/network.json")
     subparser2.add_argument("-s", "--streams_input", default="data/streams.json")
@@ -420,12 +338,10 @@ def main(raw_args=None):
             args.csv_output_directory,
             suffix,
         )
-    elif args.subroutine == "latency":
+    elif args.subroutine == "analyze":
         topology = parse_json_file(args.topology_input)
         streams = parse_json_file(args.streams_input)
         stream_analysis(topology, streams)
-    elif args.subroutine == "violations":
-        qos_violation_analysis()
 
 
 if __name__ == "__main__":

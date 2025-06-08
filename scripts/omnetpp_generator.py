@@ -323,7 +323,8 @@ def build_ini_file(
         stream["ports"] = []
         STREAM_TO_MODULE_MAP[stream["name"]] = []
         for frame in range(int(1e6 * hyper_period / stream["period"])):
-            if f"{stream['name']}#{frame}" not in tsn_config["TALKERS"]:
+            frame_name = f"{stream['name']}#{frame}"
+            if frame_name not in tsn_config["TALKERS"]:
                 break
 
             stream["source"] = stream["route"][0][0]
@@ -340,16 +341,16 @@ def build_ini_file(
                 listener_app=device_map[stream["target"]]["app"],
                 frame_size=stream["frame_size"],
                 period=hyper_period,
-                offset=tsn_config["TALKERS"][f"{stream['name']}#{frame}"] / 1e6,
+                offset=tsn_config["TALKERS"][frame_name] / 1e6,
                 stream=stream["name"],
                 stream_period=stream["period"] / 1e6,
             )
 
             device_map[stream["source"]]["identifier_entries"].append(
-                pcp_ini_identifier_entry.format(stream=stream["name"], dest_port=PORT)
+                pcp_ini_identifier_entry.format(stream=frame_name, dest_port=PORT)
             )
             device_map[stream["source"]]["encoder_entries"].append(
-                pcp_ini_encoder_entry.format(stream=stream["name"], pcp=stream["pcp"])
+                pcp_ini_encoder_entry.format(stream=frame_name, pcp=stream["pcp"])
             )
 
             device_map[stream["source"]]["has_outgoing_streams"] = "true"
@@ -357,18 +358,11 @@ def build_ini_file(
             device_map[stream["source"]]["app"] += 1
             stream["ports"].append(PORT)
             if stream["pdb_map"] is not None:
-                assert len(stream["pdb_map"]) == 1
-                first = tsn_config["TALKERS"][f"{stream['name']}#{frame}"]
-                wireless_hop = link_id_to_name(stream["pdb_map"][0]["link"], topology)
-                offset = tsn_config["EXACT"][f"{stream['name']}#{frame}"][wireless_hop][
-                    1
-                ]
-
                 ini_stream_delays.append(
                     stream_delay_ini_header.format(
                         port=PORT,
                         max_delay=(
-                            (first + stream["period"] - offset) / 1e6
+                            stream["period"] / 1e6
                             if PORT % 2 == 0
                             else 1.5 * stream["period"] / 1e6
                         ),
