@@ -13,12 +13,23 @@ struct TokenBucket {
   DataRate link_data_rate{0};
 };
 
-struct TokenStepFunction {
-  std::map<Delay, Bytes> func{{0, 0}};
-  Delay hyper_cycle{1};
-  DataRate link_data_rate{0};
+struct ElevationCount {
+  const Stream *stream;
 
-  void extend(Delay period);
+  ElevationCount() = default;
+  ElevationCount(const Stream *stream) noexcept : stream(stream) {}
+
+  auto operator()(Delay t1, Delay t2) const noexcept -> Count;
+  auto operator()(Delay t) const noexcept { return (*this)(t, t); }
+};
+
+struct ElevationStepFunctions {
+  Delay hyper_cycle{1};
+  std::vector<ElevationCount> funcs;
+  std::set<Delay> increments;
+  std::set<Delay> decrements;
+
+  ElevationStepFunctions(Generator<const Stream *> &&streams) noexcept;
 };
 
 struct MKFirmPSFPGate {
@@ -117,6 +128,7 @@ private:
   void add_mk_firm_psfp(Link link) noexcept;
   void add_mk_firm_psfp(const Vertex &v) noexcept;
 
+  [[nodiscard]] auto mk_firm_hypercycle_at(Link link) const noexcept -> Delay;
   [[nodiscard]] auto mk_firm_streams_at(Link link) const noexcept -> Generator<const Stream *>;
   [[nodiscard]] auto mk_firm_stream_diff_at(Link link1, Link link2) const noexcept
       -> Generator<const Stream *>;
@@ -128,11 +140,8 @@ private:
                                                  Generator<const Stream *> &&streams) noexcept
       -> TokenBucket;
   [[nodiscard]] static auto
-  compute_token_step_function(const DataLinkProperty &link,
-                              Generator<const Stream *> &&streams) noexcept -> TokenStepFunction;
-  [[nodiscard]] static auto compute_bucket_size(const std::map<Delay, Bytes> &func) noexcept
-      -> Bytes;
-  [[nodiscard]] static auto compute_token_rate(const std::map<Delay, Bytes> &func,
+  compute_bucket_size(const ElevationStepFunctions &stream_elevation) noexcept -> Bytes;
+  [[nodiscard]] static auto compute_token_rate(const ElevationStepFunctions &stream_elevation,
                                                Bytes bucket_size) noexcept -> DataRate;
 };
 

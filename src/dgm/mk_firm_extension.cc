@@ -7,30 +7,38 @@
 #include "nlohmann/json_fwd.hpp"
 #include "utils/generator.h"
 #include <algorithm>
-#include <cstddef>
 #include <map>
 #include <numeric>
 #include <print>
-#include <ranges>
 #include <utility>
 
 namespace tsndgm {
 
-void TokenStepFunction::extend(Delay period) {
-  if (hyper_cycle == 1) {
-    hyper_cycle = period;
-    func.insert({hyper_cycle, 0});
-    return;
+auto ElevationCount::operator()(Delay t1, Delay t2) const noexcept -> Count {
+  auto k = stream->mk_firm.k();
+  Count l = ((t1 - stream->mk_firm.e2e_latency) / stream->period) + 1;
+  Count h = t2 / stream->period;
+
+  Count c = 0;
+  for (auto i = l; i <= h; i++) {
+    c += static_cast<Count>(stream->mk_firm.mask[i % k]);
+  }
+  return c;
+}
+
+ElevationStepFunctions::ElevationStepFunctions(Generator<const Stream *> &&streams) noexcept {
+  for (const auto *stream : streams) {
+    funcs.emplace_back(ElevationCount(stream));
+    hyper_cycle = std::lcm(hyper_cycle, stream->period * stream->mk_firm.k());
   }
 
-  func.erase(hyper_cycle);
-  Delay const old_hyper_cycle = hyper_cycle;
-  size_t const old_size = func.size();
-  hyper_cycle = std::lcm(period, hyper_cycle);
-  func.insert({hyper_cycle, 0});
-  for (Count c = 1; c < hyper_cycle / old_hyper_cycle; c++) {
-    for (auto [t, b] : func | std::views::take(old_size)) {
-      func.insert({(c * old_hyper_cycle) + t, b});
+  for (auto &func : funcs) {
+    auto k = func.stream->mk_firm.k();
+    for (auto i = 0; i < hyper_cycle / func.stream->period; i++) {
+      if (func.stream->mk_firm.mask[i % k]) {
+        increments.insert(i * func.stream->period);
+        decrements.insert((i * func.stream->period) + func.stream->mk_firm.e2e_latency);
+      }
     }
   }
 }
@@ -140,6 +148,18 @@ void MKFirmConfiguration::add_mk_firm_psfp(const Vertex &v) noexcept {
   }
 }
 
+auto MKFirmConfiguration::mk_firm_hypercycle_at(Link link) const noexcept -> Delay {
+  Delay hyper_cycle = 1;
+  for (const auto *op : (*processing_order_)[link]) {
+    for (auto frame : op->frames) {
+      if (frame.id == 0 && frame.stream->mk_firm.required()) {
+        hyper_cycle = std::lcm(hyper_cycle, frame.stream->period * frame.stream->mk_firm.k());
+      }
+    }
+  }
+  return hyper_cycle;
+}
+
 auto MKFirmConfiguration::mk_firm_streams_at(Link link) const noexcept
     -> Generator<const Stream *> {
   for (const auto *op : (*processing_order_)[link]) {
@@ -195,65 +215,44 @@ auto MKFirmConfiguration::token_bucket_diff(const Edge &e) noexcept -> const Tok
 auto MKFirmConfiguration::compute_token_bucket(const DataLinkProperty &link,
                                                Generator<const Stream *> &&streams) noexcept
     -> TokenBucket {
-  auto token_step_function = compute_token_step_function(link, std::move(streams));
-  token_step_function.extend(2 * token_step_function.hyper_cycle);
-  Bytes const b = compute_bucket_size(token_step_function.func);
-  DataRate const r = compute_token_rate(token_step_function.func, b);
+  auto stream_elevation = ElevationStepFunctions(std::move(streams));
+  Bytes const b = compute_bucket_size(stream_elevation);
+  DataRate const r = compute_token_rate(stream_elevation, b);
   return {.bucket_size = b, .token_rate = r, .link_data_rate = link.data_rate};
 }
 
-auto MKFirmConfiguration::compute_token_step_function(const DataLinkProperty &link,
-                                                      Generator<const Stream *> &&streams) noexcept
-    -> TokenStepFunction {
-  TokenStepFunction token_step_function;
-  for (const auto &stream : streams) {
-    /* For each frame f_i flagged by stream.mk_firm.mask, there can be an elevated frame during
-     * the time window [i * stream.period, i * stream.period + stream.mk_firm.e2e_latency].
-     * Increase the step function in that interval by F.frame_size.max. */
-    token_step_function.extend(stream->period * stream->mk_firm.k());
-    token_step_function.link_data_rate = link.data_rate;
-    for (FrameIndex c = 0; c < token_step_function.hyper_cycle / stream->period; c++) {
-      if (!stream->mk_firm.mask[c % stream->mk_firm.k()]) {
-        continue;
-      }
-
-      auto &func = token_step_function.func;
-      auto lower = --func.upper_bound(c * stream->period);
-      lower = func.insert({c * stream->period, lower->second}).first;
-      auto upper = --func.upper_bound((c * stream->period) + stream->mk_firm.e2e_latency);
-      for (auto it = lower; it != upper; ++it) {
-        it->second += stream->frame_size.max + IFGBytes;
-      }
-      func.insert({(c * stream->period) + stream->mk_firm.e2e_latency, upper->second});
-    }
-  }
-  return token_step_function;
-}
-
-auto MKFirmConfiguration::compute_bucket_size(const std::map<Delay, Bytes> &func) noexcept
-    -> Bytes {
-  Bytes prev = 0;
+auto MKFirmConfiguration::compute_bucket_size(
+    const ElevationStepFunctions &stream_elevation) noexcept -> Bytes {
   Bytes bucket_size = 0;
-  // Conservative bound that all elevated frames arrive at joint of two consecutive steps
-  for (auto b : func | std::views::values) {
-    bucket_size = std::max(bucket_size, prev + b);
-    prev = b;
+  for (auto t : stream_elevation.increments) {
+    Bytes b_t = std::ranges::fold_left(
+        stream_elevation.funcs, static_cast<Bytes>(0), [t](auto b, auto &func) {
+          return b + (func(t) * (func.stream->frame_size.max + IFGBytes));
+        });
+    bucket_size = std::max(bucket_size, b_t);
   }
   return bucket_size;
 }
 
-auto MKFirmConfiguration::compute_token_rate(const std::map<Delay, Bytes> &func,
+auto MKFirmConfiguration::compute_token_rate(const ElevationStepFunctions &stream_elevation,
                                              Bytes bucket_size) noexcept -> DataRate {
+  auto refill = [&stream_elevation](Delay t1, Delay t2) -> DataRate {
+    return std::ranges::fold_left(
+        stream_elevation.funcs, static_cast<DataRate>(0), [t1, t2](auto b, auto &func) {
+          return b + (func(t1, t2) * (func.stream->frame_size.max + IFGBytes));
+        });
+  };
+
   DataRate token_rate = 0;
-  for (auto lower = func.begin(); lower != func.end();) {
-    Bytes sum = lower->second;
-    // Conservative bound that elevated frames arrive at last possible instant of "lower"
-    for (auto upper = ++lower; upper != func.end(); ++upper) {
-      sum += upper->second;
-      if (sum > bucket_size) {
-        token_rate = std::max(token_rate, (BitsPerByte * TicksPerSec * (sum - bucket_size)) /
-                                              (upper->first - lower->first));
+  for (auto t1 : stream_elevation.increments) {
+    for (auto t2 : stream_elevation.decrements) {
+      if (t1 < t2) {
+        token_rate = std::max(token_rate, BitsPerByte * TicksPerSec *
+                                              (refill(t1, t2) - bucket_size) / (t2 - t1));
       }
+      t2 += stream_elevation.hyper_cycle;
+      token_rate = std::max(token_rate,
+                            BitsPerByte * TicksPerSec * (refill(t1, t2) - bucket_size) / (t2 - t1));
     }
   }
   return token_rate;

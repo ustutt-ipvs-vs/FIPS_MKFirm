@@ -48,9 +48,9 @@ struct TransmissionGraph {
   void print_critical_cost(std::ostream &out = std::cout) const;
   template <TraversalDirection D> [[nodiscard]] auto traverse() -> Generator<DFSVisitor>;
 
-  template <typename Configuration = CriticalPathConfiguration>
-  auto derive_tsn_configuration() -> TSNConfiguration<Configuration> {
-    Configuration config(dfs_, processing_order_, stream_storage_->hyper_cycle);
+  template <typename Configuration = CriticalPathConfiguration, typename... Args>
+  auto derive_tsn_configuration(Args... args) -> TSNConfiguration<Configuration> {
+    Configuration config(dfs_, processing_order_, stream_storage_->hyper_cycle, args...);
     return TSNConfiguration<Configuration>(dfs_, std::move(config), processing_order_, topology_,
                                            stream_storage_->hyper_cycle);
   }
