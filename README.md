@@ -24,6 +24,65 @@ $ podman -v .:/usr/src/libtsndgm -it libtsndgm
 ```
 Then, commence with the same commands as with the [Local Build](#markdown-header-local-build).
 
+# Quick Start to Run FIPS
+After the above building steps, you should be able to see the binary `benchmarks/heuristic`.
+Check out its help menu:
+```bash
+# located in ./release
+$ ./benchmarks/heuristic -h 
+Usage: Heuristics for Wireless IEEE 802.1Qbv Scheduling [--help] [--version] --network VAR --streams VAR --output VAR [--strict_tempor
+al_isolation]
+
+Optional arguments:
+  -h, --help                         shows help message and exits 
+  -v, --version                      prints version information and exits 
+  -n, --network                      specify the network topology [nargs=0..1] [default: "../data/network.json"]
+  -s, --streams                      specify the time-triggered streams [nargs=0..1] [default: "../data/streams.json"]
+  -o, --output                       output file of the final TSN configuration [nargs=0..1] [default: "../data/tsn_configuration.json
+"]
+  -sti, --strict_temporal_isolation  use strict temporal isolation constraints (i.e., no batching) 
+```
+Naturally, we need to provide the scheduler with a network topology and the stream specification.
+We generate these input files in the following:
+
+## Building a Network and Creating Streams
+We provide a helper script that builds and simple network of an automated guided vehicle (AGV) use case.
+```bash
+# Show help menu 
+$ python scripts/agv_network_builder.py -h
+...
+
+# Example with 10 uplink/downlink streams and 5+5 internal streams
+$ python scripts/agv_network_builder.py -agv_wt_out 10 -agv_wt_in 10 -agv_ct 5 -core_ct 5
+generated network with 30 streams
+```
+This will produce the following network:
+
+![data/network.png](./data/network.png)
+
+Be sure to run the above commands in the project root directory.
+By default, the resulting `network.json` and `streams.json` file will be stored in `./data`.
+
+## Running FIPS 
+Run the following to compute a feasible TSN schedule that tries to incorporate as many of the streams as possible, and to store the resulting TSN configuration (GCL & PSFP configuration) in `./data/tsn_configuration.json`:
+```bash
+$ cd release
+$ ./benchmarks/heuristic -n ../data/network.json -s ../data/streams.json -o ../data/tsn_configuration.json
+Result: CORE_CT00 true
+...
+Result: AGV0_CORE_09 true
+Scheduled 30 streams
+```
+
+## Examining the TSN Configuration
+We provide a relatively verbose output, including:
+ - The GCL configuration at each egress port and each queue
+ - The PSFP configuration at each bridge
+ - The initial transmission offset at each talker 
+ - The expected arrival interval at the listeners
+ - The exact transmission start for each frame at each hop (for validation)
+An in-depth explanation of each component is given [here](documentation/tsn_configuration.md).
+
 # Reproduce the Evaluation Results
 ## Scalability results
 ```bash
@@ -40,21 +99,7 @@ $ podman -v .:/usr/src/libtsndgm -it libtsndgm
 /usr/src/libtsndgm# python scripts/simulation.py
 ```
 
-# Quick Library Usage Tutorial
-## Building a Network and Initializing TSN Streams
-We provide a helper script that builds and simple network of an automated guided vehicle (AGV) use case.
-```bash
-# Show help menu 
-python scripts/agv_network_builder.py -h
-
-# Example with 10 uplink/downlink streams and 5+5 internal streams
-python scripts/agv_network_builder.py -agv_wt_out 10 -agv_wt_in 10 -agv_ct 5 -core_ct 0
-```
-This will produce the following network:
-
-![data/network.png](./data/network.png)
-
-By default, the resulting network.json and streams.json file will be stored in *./data*.
+# Library Usage Tutorial
 Loading the network and streams in *libtsndgm* is then as simple as calling:
 ```cpp
   auto network = NetworkTopology(network_file);
