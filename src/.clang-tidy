@@ -20,7 +20,7 @@ Checks: "
 "
 
 WarningsAsErrors: ''
-HeaderFilterRegex: '.*libtsndgm[^\/]*\/(src|benchmarks).*\/*\/.*h'
+HeaderFilterRegex: '.*fips[^\/]*\/(src|benchmarks).*\/*\/.*h'
 FormatStyle:     none
 
 CheckOptions:
