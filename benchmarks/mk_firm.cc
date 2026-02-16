@@ -4,6 +4,7 @@
 #include "network/topology.h"
 #include <argparse/argparse.hpp>
 #include <cassert>
+#include <chrono>
 #include <print>
 
 using namespace tsndgm;
@@ -12,20 +13,26 @@ template <typename Heuristic>
 void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopology &network,
                        const std::filesystem::path tsn_config_file,
                        const std::filesystem::path mkfirm_config_file) {
+  auto t1 = std::chrono::high_resolution_clock::now();
+
   StreamId count = 0;
   std::vector<bool> accepted(stream_storage.streams.size());
   Heuristic heuristic(&stream_storage, &network);
   for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
     accepted[id] = heuristic.add_stream(id);
-    std::println("Result: {} {}", stream_storage.streams[id].name, accepted[id]);
+    std::println("Result: {} {}", stream_storage.streams[id].name, accepted[id] ? "true" : "false");
     count += accepted[id] ? 1 : 0;
   }
 
   if (count > 0) {
     auto tsn_configuration =
         heuristic.g.template derive_tsn_configuration<CriticalPathConfiguration>();
+    auto t2 = std::chrono::high_resolution_clock::now();
+
     auto mkfirm_configuration =
         heuristic.g.template derive_tsn_configuration<MKFirmConfiguration>();
+    auto t3 = std::chrono::high_resolution_clock::now();
+
     if (mkfirm_configuration.status == COMPLETED) {
       tsn_configuration.add_meta_data("generated_by", "benchmarks/mk_firm.cc");
       tsn_configuration.dump_to_file(tsn_config_file);
@@ -41,7 +48,9 @@ void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopolog
         }
       }
 
-      std::println("Scheduled {} streams", count);
+      std::println("Scheduled {} streams: total {}, augmentation {}", count,
+                   duration_cast<std::chrono::milliseconds>(t3 - t1),
+                   duration_cast<std::chrono::microseconds>(t3 - t2));
     }
   }
 }

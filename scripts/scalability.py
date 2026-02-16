@@ -11,12 +11,14 @@ import pandas as pd
 import numpy as np
 
 # Benchmark Parameters
-REPETITIONS = 10
+REPETITIONS = 1000
 
 AGV_WT_OUT = 40
 AGV_WT_IN = 40
 AGV_CT = 20
 CORE_CT = 20
+
+STREAMS_TOTAL = AGV_WT_OUT + AGV_WT_IN + AGV_CT + CORE_CT
 
 agv.DATA_RATE = 100000000  # 100Mbps
 agv.PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
@@ -31,7 +33,7 @@ agv.CT_JITTER = [0]
 agv.CT_PCP = [6]
 
 agv.WT_TYPES = 2
-agv.WT_RANDOM_WEIGHTS = [1, 1]
+agv.WT_RANDOM_WEIGHTS = [0, 1]
 agv.WT_PERIOD = [20000000, 20000000]
 agv.WT_PHASE = [0, 0]
 agv.WT_FRAMESIZE = [100, 100]
@@ -111,9 +113,10 @@ def build_best_fit_mu_pattern(m: int, k: int):
             link = f"({link[0]}, {link[1]})"
             if link in elevated_traffic_per_link:
                 max_mu = np.maximum(max_mu, elevated_traffic_per_link[link])
+                # max_mu += elevated_traffic_per_link[link]
 
         for i in range(m):
-            j = np.where(max_mu == min(max_mu))[0][0]
+            j = random.choice(np.where(max_mu == min(max_mu))[0])
             mask[j] = 1
             max_mu[j] = sys.maxsize
 
@@ -152,7 +155,8 @@ def start_benchmark(variant: str):
 
 
 def get_result(out: str):
-    return int(out.decode("utf-8").splitlines()[-1].split(" ")[1])
+    res = out.decode("utf-8").splitlines()[-1].split(" ")
+    return int(res[1]), res[4], res[6]
 
 
 def run_benchmarks():
@@ -161,6 +165,8 @@ def run_benchmarks():
 
     cwd = os.getcwd()
     res = {v: [0] * len(BENCHMARKS) for v in VARIANTS}
+
+    timing = ["", ""]
 
     for r in range(REPETITIONS):
         for m in BENCHMARKS:
@@ -175,8 +181,11 @@ def run_benchmarks():
 
             for v, handle in handles.items():
                 out, errs = handle.communicate()
+                streams, time_total, time_aug = get_result(out)
+                timing[0] = max(timing[0], time_total)
+                timing[1] = max(timing[1], time_aug)
 
-                res[v][m] += get_result(out)
+                res[v][m] += STREAMS_TOTAL - streams
 
         intermediate_results = {v: [0] * len(BENCHMARKS) for v in VARIANTS}
         for v in VARIANTS:
@@ -186,6 +195,7 @@ def run_benchmarks():
         print("Average results after repetition:", r)
         df = pd.DataFrame.from_dict(data=intermediate_results)
         print(df)
+        print(f"Worst-Case Runtime: FIPS {timing[0]} Augmentation {timing[1]}")
 
 
 if __name__ == "__main__":
