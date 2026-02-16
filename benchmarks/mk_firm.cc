@@ -13,11 +13,12 @@ void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopolog
                        const std::filesystem::path tsn_config_file,
                        const std::filesystem::path mkfirm_config_file) {
   StreamId count = 0;
+  std::vector<bool> accepted(stream_storage.streams.size());
   Heuristic heuristic(&stream_storage, &network);
   for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
-    auto accepted = heuristic.add_stream(id);
-    std::println("Result: {} {}", stream_storage.streams[id].name, accepted);
-    count += accepted ? 1 : 0;
+    accepted[id] = heuristic.add_stream(id);
+    std::println("Result: {} {}", stream_storage.streams[id].name, accepted[id]);
+    count += accepted[id] ? 1 : 0;
   }
 
   if (count > 0) {
@@ -30,6 +31,16 @@ void execute_heuristic(const StreamStorage &stream_storage, const NetworkTopolog
       tsn_configuration.dump_to_file(tsn_config_file);
       mkfirm_configuration.add_meta_data("generated_by", "benchmarks/mk_firm.cc");
       mkfirm_configuration.dump_to_file(mkfirm_config_file);
+
+      count = 0;
+      for (StreamId id = 0; id < stream_storage.streams.size(); id++) {
+        accepted[id] =
+            accepted[id] && !mkfirm_configuration.configuration.stable_qos_violations[id];
+        if (accepted[id]) {
+          count++;
+        }
+      }
+
       std::println("Scheduled {} streams", count);
     }
   }

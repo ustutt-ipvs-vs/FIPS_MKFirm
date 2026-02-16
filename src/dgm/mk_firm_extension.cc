@@ -3,6 +3,7 @@
 #include "dgm/traversal.h"
 #include "network/histogram.h"
 #include "network/stream.h"
+#include "network/stream_storage.h"
 #include "network/topology.h"
 #include "nlohmann/json_fwd.hpp"
 #include "utils/generator.h"
@@ -16,8 +17,8 @@ namespace tsndgm {
 
 auto ElevationCount::operator()(Delay t1, Delay t2) const noexcept -> Count {
   auto k = stream->mk_firm.k();
-  Count l = ((t1 - stream->mk_firm.e2e_latency) / stream->period) + 1;
-  Count h = t2 / stream->period;
+  Count const l = ((t1 - stream->mk_firm.e2e_latency) / stream->period) + 1;
+  Count const h = t2 / stream->period;
 
   Count c = 0;
   for (auto i = l; i <= h; i++) {
@@ -28,7 +29,7 @@ auto ElevationCount::operator()(Delay t1, Delay t2) const noexcept -> Count {
 
 ElevationStepFunctions::ElevationStepFunctions(Generator<const Stream *> &&streams) noexcept {
   for (const auto *stream : streams) {
-    funcs.emplace_back(ElevationCount(stream));
+    funcs.emplace_back(stream);
     hyper_cycle = std::lcm(hyper_cycle, stream->period * stream->mk_firm.k());
   }
 
@@ -44,20 +45,21 @@ ElevationStepFunctions::ElevationStepFunctions(Generator<const Stream *> &&strea
 }
 
 MKFirmConfiguration::MKFirmConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
-                                         Delay hyper_cycle) noexcept
-    : hyper_cycle_(hyper_cycle), critical_path_(dfs, processing_order),
-      processing_order_(&processing_order), crit_cost_(processing_order.total_operations),
-      mu_(processing_order.total_operations) {}
+                                         const StreamStorage &streams) noexcept
+    : stable_qos_violations(streams.streams.size()), hyper_cycle_(streams.hyper_cycle),
+      critical_path_(dfs, processing_order), processing_order_(&processing_order),
+      crit_cost_(processing_order.total_operations), mu_(processing_order.total_operations) {}
 
 auto MKFirmConfiguration::dump_to_json(const NetworkTopology *topology,
-                                       nlohmann::json &&j) const noexcept -> nlohmann::json {
-  j["MK_FIRM_PSFP"] = nlohmann::json::object();
+                                       nlohmann::ordered_json &&j) const noexcept
+    -> nlohmann::ordered_json {
+  j["MK_FIRM_PSFP"] = nlohmann::ordered_json::object();
   for (const auto &[device_id, psfp_gates] : mkfirm_psfp_config) {
     auto device_name = topology->at(device_id).name;
-    j["MK_FIRM_PSFP"][device_name] = nlohmann::json::array();
+    j["MK_FIRM_PSFP"][device_name] = nlohmann::ordered_json::array();
     for (const auto &gate : psfp_gates) {
-      nlohmann::json j_gate{
-          {"frames", nlohmann::json::array()}, {"open", gate.open}, {"close", gate.close}};
+      nlohmann::ordered_json j_gate{
+          {"frames", nlohmann::ordered_json::array()}, {"open", gate.open}, {"close", gate.close}};
       for (const auto &frame : gate.frames) {
         j_gate["frames"].push_back(frame.name());
       }
@@ -113,7 +115,7 @@ void MKFirmConfiguration::sequential_transmission(const Edge &e) noexcept {
                                                       (branched_off_traffic / tb.link_data_rate));
 }
 
-auto MKFirmConfiguration::check_stable_qos(const Vertex &v) const noexcept -> TraversalStatus {
+auto MKFirmConfiguration::check_stable_qos(const Vertex &v) noexcept -> TraversalStatus {
   auto dmax = v.weights[JOB].outgoing;
   for (auto frame : v.frames) {
     auto dmin = frame.stream->pdb_map.at(v.link()).d_total.min;
@@ -122,18 +124,18 @@ auto MKFirmConfiguration::check_stable_qos(const Vertex &v) const noexcept -> Tr
     if (objective > 0) {
       std::println("Stable QoS violation of {}: [{}, {}] -> {}", frame.stream->name,
                    arrival_interval.min, arrival_interval.max, objective);
-      return ABORT;
+      stable_qos_violations[frame.stream->id] = true;
     }
   }
   return CONTINUE;
 }
 
 void MKFirmConfiguration::add_mk_firm_psfp(const Vertex &v) noexcept {
-  Delay psfp_closing_time = mu_[v.id] + v.weights.pdb.d_total.max;
+  Delay const psfp_closing_time = mu_[v.id] + v.weights.pdb.d_total.max;
 
   for (const auto &frame : v.frames) {
     const auto *stream = frame.stream;
-    FrameIndex n = hyper_cycle_ / stream->period;
+    FrameIndex const n = hyper_cycle_ / stream->period;
     for (FrameIndex c = frame.id; c < std::lcm(n, stream->mk_firm.k()); c += n) {
       if (!stream->mk_firm.mask[c % stream->mk_firm.k()]) {
         continue;
@@ -176,8 +178,9 @@ auto MKFirmConfiguration::mk_firm_stream_diff_at(Link link1, Link link2) const n
   for (const auto *op : (*processing_order_)[link1]) {
     for (auto frame : op->frames) {
       if (frame.id == 0 && frame.stream->mk_firm.required()) {
-        auto it = std::ranges::find_if(
-            op->route_succ, [frame](auto *op_succ) { return op_succ->frames.contains(frame); });
+        auto it = std::ranges::find_if(op->route_succ, [frame](auto *op_succ) -> auto {
+          return op_succ->frames.contains(frame);
+        });
         if ((*it)->link() != link2) {
           co_yield frame.stream;
         }
@@ -225,8 +228,8 @@ auto MKFirmConfiguration::compute_bucket_size(
     const ElevationStepFunctions &stream_elevation) noexcept -> Bytes {
   Bytes bucket_size = 0;
   for (auto t : stream_elevation.increments) {
-    Bytes b_t = std::ranges::fold_left(
-        stream_elevation.funcs, static_cast<Bytes>(0), [t](auto b, auto &func) {
+    Bytes const b_t = std::ranges::fold_left(
+        stream_elevation.funcs, static_cast<Bytes>(0), [t](auto b, auto &func) -> auto {
           return b + (func(t) * (func.stream->frame_size.max + IFGBytes));
         });
     bucket_size = std::max(bucket_size, b_t);
@@ -238,7 +241,7 @@ auto MKFirmConfiguration::compute_token_rate(const ElevationStepFunctions &strea
                                              Bytes bucket_size) noexcept -> DataRate {
   auto refill = [&stream_elevation](Delay t1, Delay t2) -> DataRate {
     return std::ranges::fold_left(
-        stream_elevation.funcs, static_cast<DataRate>(0), [t1, t2](auto b, auto &func) {
+        stream_elevation.funcs, static_cast<DataRate>(0), [t1, t2](auto b, auto &func) -> auto {
           return b + (func(t1, t2) * (func.stream->frame_size.max + IFGBytes));
         });
   };

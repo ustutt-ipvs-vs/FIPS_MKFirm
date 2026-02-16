@@ -42,7 +42,7 @@ auto IncrementalHeuristic::add_wired_stream(
     -> TransmissionGraph {
   const auto &stream = stream_storage_->streams[id];
 
-  auto stream_filter = [&](const Stream &s) {
+  auto stream_filter = [&](const Stream &s) -> bool {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
   auto g_new = TransmissionGraphMerger(stream_storage_, network_, g, graphs_.stream_graphs[id],
@@ -51,7 +51,7 @@ auto IncrementalHeuristic::add_wired_stream(
   assert(g_new.check_consistency());
 
   if (g_new.is_feasible()) {
-    auto wired_stream_filter = [&](const Stream &s) {
+    auto wired_stream_filter = [&](const Stream &s) -> bool {
       return !s.route.has_wireless_links() &&
              (std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s);
     };
@@ -69,7 +69,7 @@ auto IncrementalHeuristic::add_wireless_stream(
   const auto &stream = stream_storage_->streams[id];
 
   // merge new stream into g_wireless
-  auto wireless_stream_filter = [&](const Stream &s) {
+  auto wireless_stream_filter = [&](const Stream &s) -> bool {
     return s.route.has_wireless_links() &&
            (std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s);
   };
@@ -81,7 +81,7 @@ auto IncrementalHeuristic::add_wireless_stream(
   assert(g_wireless_new.check_consistency());
 
   // merge g_wired and g_wireless
-  auto stream_filter = [&](const Stream &s) {
+  auto stream_filter = [&](const Stream &s) -> bool {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
   auto g_new = TransmissionGraphMerger(stream_storage_, network_, g_wired_, g_wireless_new,
@@ -107,7 +107,7 @@ auto StrictTemporalIsolationHeuristic::add_stream(
   const auto &stream = stream_storage_->streams[id];
   graphs_.add_stream(id);
 
-  auto stream_filter = [&](const Stream &s) {
+  auto stream_filter = [&](const Stream &s) -> bool {
     return std::ranges::find(feasible_streams_, &s) != feasible_streams_.end() || &stream == &s;
   };
   TransmissionGraph g_new = TransmissionGraphMerger(stream_storage_, network_, g,

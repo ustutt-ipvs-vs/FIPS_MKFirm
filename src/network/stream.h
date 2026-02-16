@@ -11,6 +11,7 @@ using PCPValue = unsigned int;
 using FrameIndex = unsigned int;
 using PDBMap = std::map<Link, PDB>;
 using DelayMap = std::map<Link, Delay>;
+using StreamId = size_t;
 
 [[maybe_unused]] constexpr PCPValue DefaultPCP = 7;
 
@@ -56,6 +57,7 @@ struct Stream {
   StableQoSRequest stable_qos;
   std::string name;
   PDBMap pdb_map;
+  StreamId id{0};
 
   static auto load_from_json(nlohmann::json &&json, const NetworkTopology &network) -> Stream;
 

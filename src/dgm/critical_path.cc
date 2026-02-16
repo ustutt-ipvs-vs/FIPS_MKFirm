@@ -4,7 +4,6 @@
 #include "traversal.h"
 #include "utils/generator.h"
 #include <cassert>
-#include <cstdio>
 #include <format>
 #include <limits>
 #include <optional>

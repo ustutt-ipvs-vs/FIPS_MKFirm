@@ -15,19 +15,25 @@
 namespace tsndgm {
 
 StreamStorage::StreamStorage(const std::vector<Stream> &streams) {
-  hyper_cycle = std::ranges::fold_left(streams, static_cast<Delay>(1), [](Delay h, auto &stream) {
-    return std::lcm(h, stream.period);
-  });
+  hyper_cycle =
+      std::ranges::fold_left(streams, static_cast<Delay>(1), [](Delay h, auto &stream) -> auto {
+        return std::lcm(h, stream.period);
+      });
+  StreamId s_id = 0;
   for (auto stream : streams) {
+    stream.id = s_id++;
     stream.populate_wireline_pdbs();
     this->streams.push_back(std::move(stream));
   }
 }
 
 StreamStorage::StreamStorage(nlohmann::json &&json, const NetworkTopology &network) {
+  StreamId s_id = 0;
   std::vector<Stream> streams;
   for (auto &json_stream : json) {
-    streams.push_back(Stream::load_from_json(std::move(json_stream), network));
+    auto stream = Stream::load_from_json(std::move(json_stream), network);
+    stream.id = s_id++;
+    streams.emplace_back(std::move(stream));
   }
   *this = StreamStorage(streams);
 }
@@ -93,7 +99,7 @@ auto StreamStorage::number_of_transmissions(
 }
 
 auto StreamStorage::get_stream_id(const Stream *ptr) const noexcept -> StreamId {
-  return std::ranges::find_if(streams, [ptr](auto &stream) { return &stream == ptr; }) -
+  return std::ranges::find_if(streams, [ptr](auto &stream) -> auto { return &stream == ptr; }) -
          streams.begin();
 }
 

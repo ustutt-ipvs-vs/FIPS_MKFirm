@@ -36,14 +36,16 @@ auto StableQoSRequest::load_from_json(const nlohmann::json &json) -> StableQoSRe
 
 auto Stream::load_from_json(nlohmann::json &&json, const NetworkTopology &network) -> Stream {
   auto const frame_size = FrameSizeRange(json["frame_size"]);
-  Stream stream = {.route = Route(std::move(json["route"]), network),
-                   .frame_size = frame_size,
-                   .period = json["period"],
-                   .phase = json["phase"],
-                   .pcp = json_get_or_default<>(json["pcp"], static_cast<PCPValue>(DefaultPCP)),
-                   .mk_firm = json_get_or_default<MKFirmLatencyRequirement>(json["mk_firm"]),
-                   .stable_qos = json_get_or_default<StableQoSRequest>(json["stable_qos"]),
-                   .name = json["name"]};
+  Stream stream = {
+      .route = Route(std::move(json["route"]), network),
+      .frame_size = frame_size,
+      .period = json["period"],
+      .phase = json["phase"],
+      .pcp = json_get_or_default<>(json["pcp"], static_cast<PCPValue>(DefaultPCP)),
+      .mk_firm = json_get_or_default<MKFirmLatencyRequirement>(json["mk_firm"]),
+      .stable_qos = json_get_or_default<StableQoSRequest>(json["stable_qos"]),
+      .name = json["name"],
+  };
 
   if (json["mk_firm"].is_null() && json["stable_qos"].is_null()) {
     std::println("Warning: {} has neither (m,k)-firm requirement nor stable QoS request",

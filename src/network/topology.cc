@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <ostream>
+#include <print>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -26,7 +27,7 @@ DelayInterval::DelayInterval(nlohmann::json json) {
 
 auto DeviceProperty::operator[](DeviceId id) const -> const DataLinkProperty & {
   auto data_link_it =
-      std::ranges::find_if(out, [&](auto &data_link) { return data_link.target == id; });
+      std::ranges::find_if(out, [&](auto &data_link) -> auto { return data_link.target == id; });
   return *data_link_it;
 }
 
@@ -61,12 +62,13 @@ NetworkTopology::NetworkTopology(const std::filesystem::path &in)
 
 auto NetworkTopology::get_device(DeviceId device_id) const -> const DeviceProperty * {
   auto device_it =
-      std::ranges::find_if(devices_, [&](auto &device) { return device.id == device_id; });
+      std::ranges::find_if(devices_, [&](auto &device) -> auto { return device.id == device_id; });
   return device_it != devices_.end() ? &(*device_it) : nullptr;
 }
 
 auto NetworkTopology::get_device_index(DeviceId device_id) const {
-  return std::ranges::find_if(devices_, [&](auto &device) { return device.id == device_id; }) -
+  return std::ranges::find_if(devices_,
+                              [&](auto &device) -> auto { return device.id == device_id; }) -
          devices_.begin();
 }
 
@@ -75,8 +77,10 @@ auto NetworkTopology::get_data_link(Link link) const -> const DataLinkProperty *
   if (std::cmp_greater_equal(source_index, devices_.size())) {
     throw std::invalid_argument(std::format("DeviceID does not exist: {}", link.source));
   }
-  auto data_link_it = std::ranges::find_if(
-      devices_[source_index].out, [&](auto &data_link) { return data_link.target == link.target; });
+  auto data_link_it =
+      std::ranges::find_if(devices_[source_index].out, [&](auto &data_link) -> auto {
+        return data_link.target == link.target;
+      });
   return data_link_it != devices_[source_index].out.end() ? &(*data_link_it) : nullptr;
 }
 

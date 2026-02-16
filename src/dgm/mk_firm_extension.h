@@ -2,6 +2,7 @@
 
 #include "critical_path.h"
 #include "network/histogram.h"
+#include "network/stream_storage.h"
 #include "transmission_operations.h"
 #include "traversal.h"
 
@@ -42,19 +43,20 @@ using MKFirmPSFPConfiguration = std::map<DeviceId, std::deque<MKFirmPSFPGate>>;
 
 struct MKFirmConfiguration {
   MKFirmPSFPConfiguration mkfirm_psfp_config;
+  std::vector<bool> stable_qos_violations;
 
   MKFirmConfiguration() = default;
   MKFirmConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
-                      Delay hyper_cycle) noexcept;
+                      const StreamStorage &streams) noexcept;
 
   constexpr auto traversal_events() {
-    return critical_path_.traversal_events().add(
-        std::make_tuple(std::make_pair(DFSVisitor::DISCOVER_VERTEX,
-                                       [&](auto v) { return this->visitor_discover_vertex(v); }),
-                        std::make_pair(DFSVisitor::FINISH_VERTEX,
-                                       [&](auto v) { return this->visitor_finish_vertex(v); }),
-                        std::make_pair(DFSVisitor::FINISH_EDGE,
-                                       [&](auto e) { return this->visitor_finish_edge(e); })));
+    return critical_path_.traversal_events().add(std::make_tuple(
+        std::make_pair(DFSVisitor::DISCOVER_VERTEX,
+                       [&](auto v) -> auto { return this->visitor_discover_vertex(v); }),
+        std::make_pair(DFSVisitor::FINISH_VERTEX,
+                       [&](auto v) -> auto { return this->visitor_finish_vertex(v); }),
+        std::make_pair(DFSVisitor::FINISH_EDGE,
+                       [&](auto e) -> auto { return this->visitor_finish_edge(e); })));
   }
 
   auto operator[](GlobalOpIndex id) const noexcept -> DelayInterval {
@@ -62,7 +64,8 @@ struct MKFirmConfiguration {
   }
 
   [[nodiscard]] auto dump_to_json(const NetworkTopology *topology,
-                                  nlohmann::json &&j) const noexcept -> nlohmann::json;
+                                  nlohmann::ordered_json &&j) const noexcept
+      -> nlohmann::ordered_json;
 
 private:
   Delay hyper_cycle_;
@@ -79,7 +82,7 @@ private:
   void fault_isolation(const Edge &e) noexcept;
   void sequential_transmission(const Edge &e) noexcept;
 
-  [[nodiscard]] auto check_stable_qos(const Vertex &v) const noexcept -> TraversalStatus;
+  [[nodiscard]] auto check_stable_qos(const Vertex &v) noexcept -> TraversalStatus;
 
   constexpr auto visitor_discover_vertex(auto visitor) noexcept -> TraversalStatus {
     const auto &v = *std::get<Vertex *>(visitor);

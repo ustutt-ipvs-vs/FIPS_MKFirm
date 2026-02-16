@@ -2,6 +2,7 @@
 #include "dgm/critical_path.h"
 #include "dgm/transmission_graph.h"
 #include "dgm/transmission_operations.h"
+#include "network/stream.h"
 #include "network/stream_storage.h"
 #include "network/topology.h"
 #include "utils/generator.h"
@@ -18,14 +19,14 @@ auto NecessaryQueueingMerge::compress_stream(TransmissionGraph &&g, StreamId id)
     -> TransmissionGraph {
   const auto &stream = stream_storage_->streams[id];
 
-  auto merge_condition = [&stream](auto op, auto prev) {
+  auto merge_condition = [&stream](auto op, auto prev) -> auto {
     if constexpr (P == MERGE_BEFORE) {
       return op->contains(&stream) && prev != nullptr;
     } else {
       return !op->contains(&stream) && prev != nullptr;
     }
   };
-  auto update_condition = [&stream](auto op) {
+  auto update_condition = [&stream](auto op) -> auto {
     if constexpr (P == MERGE_BEFORE) {
       return !op->contains(&stream);
     } else {

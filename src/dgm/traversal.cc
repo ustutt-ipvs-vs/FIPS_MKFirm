@@ -178,11 +178,11 @@ template <TraversalDirection D> auto DFSTraversal::get_pcp_neighbor(Vertex &op) 
   if constexpr (D == BACKWARD) {
     auto it = std::ranges::find_if(
         (*operations | std::views::reverse | std::views::drop(operations->size() - pos)),
-        [&](auto &op1) { return op1->pcp == op.pcp; });
+        [&](auto &op1) -> auto { return op1->pcp == op.pcp; });
     return it == operations->crend() ? nullptr : *it;
   } else {
     auto it = std::ranges::find_if((*operations | std::views::drop(pos)),
-                                   [&](auto &op1) { return op1->pcp == op.pcp; });
+                                   [&](auto &op1) -> auto { return op1->pcp == op.pcp; });
     return it == operations->cend() ? nullptr : *it;
   }
 }

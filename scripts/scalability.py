@@ -1,22 +1,54 @@
-from agv_network_builder import main as benchmark_builder, WT_JITTER
+from agv_network_builder import main as benchmark_builder
+import agv_network_builder as agv
 import subprocess
 import itertools
 import os
+import json
+import random
 import sys
 import datetime
 import pandas as pd
+import numpy as np
 
-AGV_WT_OUT = 200
-AGV_WT_IN = 200
-AGV_CT = 15
-CORE_CT = 15
+# Benchmark Parameters
+REPETITIONS = 10
 
-TESTED_RELIABILITY = [0.9, 0.99, 0.999, 0.9999]
-TESTED_JITTER = [1000, 20000, 40000, 60000, 80000, 100000]
-REPETITIONS = 100
+AGV_WT_OUT = 40
+AGV_WT_IN = 40
+AGV_CT = 20
+CORE_CT = 20
+
+agv.DATA_RATE = 100000000  # 100Mbps
+agv.PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
+agv.PROCESSING_DELAY = 0
+
+agv.CT_TYPES = 1
+agv.CT_PERIOD = [5000000]
+agv.CT_PHASE = [0]
+agv.CT_FRAMESIZE = [100]
+agv.CT_E2E_LATENCY = [500000]
+agv.CT_JITTER = [0]
+agv.CT_PCP = [6]
+
+agv.WT_TYPES = 2
+agv.WT_RANDOM_WEIGHTS = [1, 1]
+agv.WT_PERIOD = [20000000, 20000000]
+agv.WT_PHASE = [0, 0]
+agv.WT_FRAMESIZE = [100, 100]
+agv.WT_STABLE_LATENCY = [20000000, 20000000]
+agv.WT_STABLE_JITTER = [0, 0]
+agv.WT_MK_FIRM_MASK = ["0", "1"]  # placeholder, modified below
+agv.WT_MK_FIRM_LATENCY = [20000000, 20000000]
+agv.WT_PCP = [5, 5]
+
+agv.WT_RELIABILITY = [0.99, 0.99]
+agv.WT_RTI_POLICY = "minimize_dmax"
+agv.STREAM_OBJECTIVE = "tardiness"
+
+WT_MKFIRM_K = 12
 
 
-def build_benchmark(rel: float, seed: int, jitter=WT_JITTER):
+def build_plain_benchmark():
     args = [
         "-agv_wt_out",
         str(AGV_WT_OUT),
@@ -26,52 +58,97 @@ def build_benchmark(rel: float, seed: int, jitter=WT_JITTER):
         str(AGV_CT),
         "-core_ct",
         str(CORE_CT),
-        "-rel",
-        str(rel),
-        "-jitter",
-        str(jitter),
-        "-suffix",
-        f"{rel}_{jitter}",
-        "-seed",
-        str(seed),
         "-q",
     ]
     benchmark_builder(args)
 
 
-def build_benchmarks():
-    # use the same seed for all tested reliability requirements
-    # this ensures the same stream set for all tests
-    seed = int(datetime.datetime.now().timestamp())
-    for rel in TESTED_RELIABILITY:
-        for jitter in TESTED_JITTER:
-            build_benchmark(rel, seed, jitter)
+def build_first_fit_mu_pattern(m: int, k: int):
+    with open("data/streams.json") as f:
+        streams = json.load(f)
+
+    for stream in streams:
+        if "mk_firm" not in stream or stream["mk_firm"]["mask"] == "0":
+            continue
+
+        stream["mk_firm"]["mask"] = ("1" * m) + ("0" * (k - m))
+
+    with open(f"data/streams_first_fit.json", "w") as f:
+        json.dump(streams, f, indent=4)
 
 
-def start_benchmark(rel: float, sti: bool, jitter=WT_JITTER):
-    if sti:
-        return subprocess.Popen(
-            [
-                "./benchmarks/heuristic",
-                "-n",
-                f"../data/network{rel}_{jitter}.json",
-                "-s",
-                f"../data/streams{rel}_{jitter}.json",
-                "-sti",
-            ],
-            stdout=subprocess.PIPE,
-        )
-    else:
-        return subprocess.Popen(
-            [
-                "./benchmarks/heuristic",
-                "-n",
-                f"../data/network{rel}_{jitter}.json",
-                "-s",
-                f"../data/streams{rel}_{jitter}.json",
-            ],
-            stdout=subprocess.PIPE,
-        )
+def build_random_mu_pattern(m: int, k: int):
+    with open("data/streams.json") as f:
+        streams = json.load(f)
+
+    mask = list(("1" * m) + ("0" * (k - m)))
+
+    for stream in streams:
+        if "mk_firm" not in stream or stream["mk_firm"]["mask"] == "0":
+            continue
+
+        random.shuffle(mask)
+        stream["mk_firm"]["mask"] = "".join(mask)
+
+    with open(f"data/streams_random.json", "w") as f:
+        json.dump(streams, f, indent=4)
+
+
+def build_best_fit_mu_pattern(m: int, k: int):
+    with open("data/streams.json") as f:
+        streams = json.load(f)
+
+    elevated_traffic_per_link = {}
+
+    for stream in streams:
+        if "mk_firm" not in stream or stream["mk_firm"]["mask"] == "0":
+            continue
+
+        mask = [0] * k
+        max_mu = np.array([0] * k)
+
+        for link in stream["route"]:
+            link = f"({link[0]}, {link[1]})"
+            if link in elevated_traffic_per_link:
+                max_mu = np.maximum(max_mu, elevated_traffic_per_link[link])
+
+        for i in range(m):
+            j = np.where(max_mu == min(max_mu))[0][0]
+            mask[j] = 1
+            max_mu[j] = sys.maxsize
+
+        for link in stream["route"]:
+            link = f"({link[0]}, {link[1]})"
+            if link in elevated_traffic_per_link:
+                elevated_traffic_per_link[link] += max_mu
+            else:
+                elevated_traffic_per_link[link] = max_mu
+
+        stream["mk_firm"]["mask"] = "".join([str(v) for v in mask])
+
+    with open(f"data/streams_best_fit.json", "w") as f:
+        json.dump(streams, f, indent=4)
+
+
+def build_benchmarks(m: int, k: int):
+    build_plain_benchmark()
+
+    build_first_fit_mu_pattern(m, k)
+    build_random_mu_pattern(m, k)
+    build_best_fit_mu_pattern(m, k)
+
+
+def start_benchmark(variant: str):
+    return subprocess.Popen(
+        [
+            "./benchmarks/mk_firm",
+            "-n",
+            f"../data/network.json",
+            "-s",
+            f"../data/streams_{variant}.json",
+        ],
+        stdout=subprocess.PIPE,
+    )
 
 
 def get_result(out: str):
@@ -79,47 +156,35 @@ def get_result(out: str):
 
 
 def run_benchmarks():
-    BENCHMARKS = list(itertools.product(TESTED_RELIABILITY, TESTED_JITTER))
+    BENCHMARKS = list(range(WT_MKFIRM_K + 1))
+    VARIANTS = ["first_fit", "random", "best_fit"]
 
     cwd = os.getcwd()
-    res = {"STI": [0] * len(BENCHMARKS), "FIPS": [0] * len(BENCHMARKS)}
+    res = {v: [0] * len(BENCHMARKS) for v in VARIANTS}
+
     for r in range(REPETITIONS):
-        os.chdir(cwd)
-        build_benchmarks()
+        for m in BENCHMARKS:
+            handles = {}
 
-        os.chdir("release")
-        handles = {}
-        for sti in [False, True]:
-            for rel, jitter in BENCHMARKS:
-                handles[(sti, (rel, jitter))] = start_benchmark(rel, sti, jitter)
+            os.chdir(cwd)
+            build_benchmarks(m, WT_MKFIRM_K)
+            os.chdir("release")
 
-        for key, handle in handles.items():
-            i = BENCHMARKS.index(key[1])
-            out, errs = handle.communicate()
-            if key[0]:
-                res["STI"][i] += get_result(out)
-            else:
-                res["FIPS"][i] += get_result(out)
+            for v in VARIANTS:
+                handles[v] = start_benchmark(v)
 
-        intermediate_results = {"STI": {}, "FIPS": {}}
-        for t in ["STI", "FIPS"]:
-            for jitter in TESTED_JITTER:
-                intermediate_results[t][jitter] = {}
+            for v, handle in handles.items():
+                out, errs = handle.communicate()
 
-            for i, (rel, jitter) in enumerate(BENCHMARKS):
-                intermediate_results[t][jitter][rel] = int(res[t][i] / (r + 1))
+                res[v][m] += get_result(out)
 
-            for jitter in TESTED_JITTER:
-                intermediate_results[t][jitter] = intermediate_results[t][
-                    jitter
-                ].values()
+        intermediate_results = {v: [0] * len(BENCHMARKS) for v in VARIANTS}
+        for v in VARIANTS:
+            for m in BENCHMARKS:
+                intermediate_results[v][m] = int(res[v][m] / (r + 1))
 
         print("Average results after repetition:", r)
-        print("STI:")
-        df = pd.DataFrame(data=intermediate_results["STI"], index=TESTED_RELIABILITY)
-        print(df)
-        print("FIPS:")
-        df = pd.DataFrame(data=intermediate_results["FIPS"], index=TESTED_RELIABILITY)
+        df = pd.DataFrame.from_dict(data=intermediate_results)
         print(df)
 
 

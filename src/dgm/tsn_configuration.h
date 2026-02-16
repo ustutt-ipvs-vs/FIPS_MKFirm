@@ -42,7 +42,7 @@ using ListenerConfiguration = std::map<Frame, DelayInterval>;
 struct CriticalPathConfiguration {
   CriticalPathConfiguration() = default;
   CriticalPathConfiguration(DFSTraversal &dfs, const ProcessingOrder &processing_order,
-                            Delay /*hyper_cycle*/)
+                            const StreamStorage & /*streams*/)
       : critical_path_(dfs, processing_order) {}
 
   constexpr auto traversal_events() { return critical_path_.traversal_events(); }
@@ -51,8 +51,8 @@ struct CriticalPathConfiguration {
     return critical_path_[id].cost;
   }
 
-  [[nodiscard]] static auto dump_to_json(const NetworkTopology * /*topology*/, nlohmann::json &&j)
-      -> nlohmann::json {
+  [[nodiscard]] static auto dump_to_json(const NetworkTopology * /*topology*/,
+                                         nlohmann::ordered_json &&j) -> nlohmann::ordered_json {
     return j;
   }
 
@@ -66,31 +66,33 @@ template <typename ConfigurationType> struct TSNConfiguration {
   PSFPConfiguration psfp_config;
   TalkerConfiguration talker_config;
   ListenerConfiguration listener_config;
+  ConfigurationType configuration;
 
   TSNConfiguration() = default;
-  explicit TSNConfiguration(DFSTraversal &dfs, ConfigurationType &&configuration,
+  explicit TSNConfiguration(DFSTraversal &dfs, ConfigurationType &&config,
                             const ProcessingOrder &processing_order,
                             const NetworkTopology *topology, Delay hyper_cycle);
 
   constexpr auto traversal_events() {
-    return configuration_.traversal_events().add(std::make_tuple(std::make_pair(
-        DFSVisitor::FINISH_VERTEX, [&](auto v) { return this->visitor_finish_vertex(v); })));
+    return configuration.traversal_events().add(
+        std::make_tuple(std::make_pair(DFSVisitor::FINISH_VERTEX, [&](auto v) -> auto {
+          return this->visitor_finish_vertex(v);
+        })));
   }
 
   template <class T> void add_meta_data(const std::string &name, const T &value) {
     meta_data_[name] = value;
   }
 
-  [[nodiscard]] auto dump_to_json() const -> nlohmann::json;
+  [[nodiscard]] auto dump_to_json() const -> nlohmann::ordered_json;
   void dump_to_file(const std::filesystem::path &out) const;
 
 private:
   DFSTraversal *dfs_;
-  ConfigurationType configuration_;
   const ProcessingOrder *processing_order_;
   const NetworkTopology *topology_;
   Delay hyper_cycle_;
-  nlohmann::json meta_data_;
+  nlohmann::ordered_json meta_data_;
 
   void add_talker_entry(const TransmissionOperation &op) noexcept;
   void add_listener_entry(const TransmissionOperation &op) noexcept;

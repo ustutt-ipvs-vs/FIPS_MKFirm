@@ -1,12 +1,12 @@
 #include "histogram.h"
 #include "nlohmann/json_fwd.hpp"
 #include "topology.h"
+#include <algorithm>
 #include <bits/ranges_algo.h>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace tsndgm {
 
@@ -26,7 +26,7 @@ DelayHistogram::DelayHistogram(Histogram histogram, Count size, std::string name
 DelayHistogram::DelayHistogram(const Histogram &histogram, std::string name)
     : histogram(histogram),
       size(std::ranges::fold_left(histogram, static_cast<Count>(0),
-                                  [](Count c, auto it) { return c + it.second; })),
+                                  [](Count c, auto it) -> auto { return c + it.second; })),
       name(std::move(name)) {
   verify_upper_bound();
 };

@@ -22,7 +22,7 @@ auto TransmissionWeights::operator[](EdgeType type) const -> WeightPair {
 }
 
 void TransmissionWeights::merge(const TransmissionWeights &other) {
-  auto merge_pairs = [&](auto &first, auto &second, auto pdb_val) {
+  auto merge_pairs = [&](auto &first, auto &second, auto pdb_val) -> auto {
     first.incoming = std::max(first.incoming, second.incoming);
     first.outgoing = pdb_val;
   };

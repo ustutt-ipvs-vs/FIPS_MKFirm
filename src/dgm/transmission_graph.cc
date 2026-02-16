@@ -18,6 +18,7 @@
 #include <numeric>
 #include <optional>
 #include <ostream>
+#include <print>
 #include <ranges>
 #include <string>
 #include <utility>
@@ -194,7 +195,7 @@ void TransmissionGraph::merge(MergeInstruction inst) noexcept {
   consistent_flip<MOVE_BEFORE>(std::move(req_flips));
   assert(check_consistency());
   assert(std::ranges::all_of(
-      req_flips, [&](auto &e) { return position_[e.first.second].second == e.second; }));
+      req_flips, [&](auto &e) -> auto { return position_[e.first.second].second == e.second; }));
 
   // merge transmission operations (inst.first is kept)
   for (auto &pair : related_edges) {
@@ -247,7 +248,7 @@ void TransmissionGraph::add_operation(Frame frame, RouteHopLink port) noexcept {
 
   TransmissionWeights weights = TransmissionWeights::from_pdb(pdb);
   if (source->is_talker()) {
-    weights.job.incoming = f * stream->period + stream->phase;
+    weights.job.incoming = (f * stream->period) + stream->phase;
   }
 
   GlobalOpIndex const id = processing_order_.total_operations++;
@@ -260,8 +261,8 @@ void TransmissionGraph::add_operation(Frame frame, RouteHopLink port) noexcept {
 }
 
 void TransmissionGraph::connect_precedence_constraints(const Stream &stream) {
-  auto get_next_occurence = [&](auto it, auto link, auto f) {
-    return std::find_if(it, processing_order_[link].end(), [&](TransmissionOperation *op) {
+  auto get_next_occurence = [&](auto it, auto link, auto f) -> auto {
+    return std::find_if(it, processing_order_[link].end(), [&](TransmissionOperation *op) -> bool {
       return op->frames.contains(Frame(&stream, f));
     });
   };
@@ -330,12 +331,12 @@ void TransmissionGraph::consistent_flip(const FlipInstruction &inst) noexcept {
 template <TransmissionGraph::FlipPolicy P>
 void TransmissionGraph::consistent_flip(
     std::map<std::pair<Link, GlobalOpIndex>, LinkOpPosition> &&req_flips) noexcept {
-  auto log_flip = [&](auto id, auto pos) {
+  auto log_flip = [&](auto id, auto pos) -> auto {
     if (!flip_log_.contains(id)) {
       flip_log_.insert({id, pos});
     }
   };
-  constexpr auto next = [](auto pos) {
+  constexpr auto next = [](auto pos) -> auto {
     if constexpr (P == MOVE_BEFORE) {
       return pos - 1;
     } else {
@@ -394,8 +395,8 @@ auto TransmissionGraph::delete_merged_neighbors(
     const std::deque<OperationPair> &related_edges,
     std::vector<TransmissionOperation *> &neighbors) noexcept
     -> std::vector<TransmissionOperation *> & {
-  std::erase_if(neighbors, [&related_edges](auto *op) {
-    return std::ranges::find_if(related_edges, [op](auto &pair) {
+  std::erase_if(neighbors, [&related_edges](auto *op) -> auto {
+    return std::ranges::find_if(related_edges, [op](auto &pair) -> auto {
              return pair.second == op->id;
            }) != related_edges.end();
   });
@@ -430,7 +431,7 @@ template <TransmissionGraph::FlipPolicy P>
 auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *> &first,
                                        const std::vector<TransmissionOperation *> &second)
     const noexcept -> Generator<FlipInstruction> {
-  auto flip_required = [](auto first, auto second) {
+  auto flip_required = [](auto first, auto second) -> auto {
     if constexpr (P == MOVE_BEFORE) {
       return first < second;
     } else {
@@ -495,7 +496,7 @@ auto TransmissionGraph::adjacent_flips(const std::vector<TransmissionOperation *
       continue;
     }
 
-    auto it = std::ranges::find_if(second, [&](auto *op2) {
+    auto it = std::ranges::find_if(second, [&](auto *op2) -> auto {
       return op1->source->id == op2->source->id && op1->target->id == op2->target->id;
     });
     if (it != second.end()) {
@@ -553,7 +554,7 @@ auto TransmissionGraph::operation_to_string(GlobalOpIndex id) const noexcept -> 
   const auto &op = processing_order_[id];
   return std::format("{}: ([{},{}], {{{}}})", op.id, op.source->id, op.target->id,
                      std::accumulate(op.frames.begin(), op.frames.end(), std::string(""),
-                                     [](const auto &s, auto frame) {
+                                     [](const auto &s, auto frame) -> auto {
                                        return s == "" ? frame.name() : s + ", " + frame.name();
                                      }));
 }

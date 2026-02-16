@@ -18,7 +18,7 @@ PrecedenceGraphs::PrecedenceGraphs(const StreamStorage *stream_storage) noexcept
 void PrecedenceGraphs::add_stream(StreamId id) noexcept {
   const auto &stream = stream_storage_->streams[id];
 
-  auto stream_filter = [&stream](const auto &other) { return &stream == &other; };
+  auto stream_filter = [&stream](const auto &other) -> auto { return &stream == &other; };
   stream_graphs.insert(
       {id, TransmissionGraph(stream_storage_, nullptr, MAKESPAN, {}, stream_filter)});
 
