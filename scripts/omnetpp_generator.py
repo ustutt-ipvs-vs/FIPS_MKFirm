@@ -21,7 +21,6 @@ import d6g.devices.tsntranslator.TTInterface;
 import d6g.devices.tsntranslator.TTChannel;
 import d6g.devices.tsntranslator.TsnTranslator;
 import d6g.networks.DetComNetworkBase;
-import d6g.apps.edgecloud.UdpEdgeCloudBasicApp;
 import inet.node.tsn.TsnDevice;
 import inet.node.tsn.TsnSwitch;
 import ned.DatarateChannel;
@@ -219,13 +218,14 @@ pcp_ini = """
 
 tt_stream_ini = """
 # Stream {stream}: period {stream_period}ms
-*.{talker}.app[{talker_app}].typename = "UdpBasicApp"
+*.{talker}.app[{talker_app}].typename = "UdpDelayerApp"
 *.{talker}.app[{talker_app}].packetName = "{stream}"
 *.{talker}.app[{talker_app}].destAddresses = "{listener}"
 *.{talker}.app[{talker_app}].destPort = {port}
 *.{talker}.app[{talker_app}].messageLength = {frame_size}B - 58B # 58B = 8B (UDP) + 20B (IP) + 14B (ETH MAC) + 4B (Dot1Q) + 4B (ETH FCS) + 8B (ETH PHY)
 *.{talker}.app[{talker_app}].sendInterval = {period}ms
 *.{talker}.app[{talker_app}].startTime = {offset}ms
+*.{talker}.app[{talker_app}].delay = {delay}
 *.{listener}.app[{listener_app}].typename = "UdpSinkApp"
 *.{listener}.app[{listener_app}].io.localPort = {port}
 """
@@ -251,7 +251,7 @@ psfp_ini_header = """
 **.bridging.streamFilter.ingress.meter[*].committedBurstSize = 10kB
 **.bridging.streamFilter.ingress.gate[*].initiallyOpen = false
 **.bridging.streamFilter.ingress.gate[*].typename = "OctetLimitedPeriodicGate"
-**.bridging.streamFilter.ingress.typename = "MKFirmIeee8021qFilter"
+**.bridging.streamFilter.ingress.typename = "{t}"
 """
 
 nts_map = "{{packetFilter: expr(udp.destPort == {dest_port}), stream: '{frame}'}}"
@@ -272,6 +272,12 @@ mkfirm_psfp_ini = """*.{device}.bridging.streamFilter.ingress.numMKFirmStreams =
 *.{device}.bridging.streamFilter.ingress.classifier.mkFirmMapping = {{{stream_to_gate_mapping}}}
 {gates}"""
 
+skipfactor_psfp_ini = """
+*.{device}.bridging.streamFilter.ingress.classifier.skipFactor = {{{skip_factor}}}
+*.{device}.bridging.streamFilter.ingress.classifier.period = {{{period}}}
+*.{device}.bridging.streamFilter.ingress.classifier.elevatedPcp = 7
+"""
+
 STREAM_TO_MODULE_MAP = {}
 
 
@@ -279,6 +285,18 @@ def link_id_to_name(link, topology):
     return (
         f"[{topology['nodes'][link[0]]['name']},{topology['nodes'][link[1]]['name']}]"
     )
+
+
+def absolute_to_relative_gcl(opening_times, hyper_period_ns):
+    offset = hyper_period_ns - opening_times[-1]
+    last = -offset
+    durations = []
+
+    for t in opening_times:
+        durations.append(f"{(t - last)/1e6}ms")
+        last = t
+
+    return ", ".join(durations), offset
 
 
 def build_ini_file(
@@ -295,10 +313,14 @@ def build_ini_file(
     repetitions,
     histogram_directory,
     delay_outliers,
+    skip_factor,
+    talker_delay,
 ):
     global PORT
 
-    hyper_period = math.lcm(*[stream["period"] for stream in streams]) / 1e6
+    hyper_period_ns = math.lcm(*[stream["period"] for stream in streams])
+    hyper_period = hyper_period_ns / 1e6
+
     ini = omnetpp_ini_header.format(
         scenario=scenario,
         package=package,
@@ -342,6 +364,7 @@ def build_ini_file(
                 frame_size=stream["frame_size"],
                 period=hyper_period,
                 offset=tsn_config["TALKERS"][frame_name] / 1e6,
+                delay=talker_delay,
                 stream=stream["name"],
                 stream_period=stream["period"] / 1e6,
             )
@@ -397,18 +420,24 @@ def build_ini_file(
     ini_bridges = ""
     for node_id in device_map:
         node = device_map[node_id]
+        if talker_delay != "0s" and node["type"] == 0:
+            continue
+
         ini_bridges += shaping_ini.format(
             device=node["name"], queues=8, scenario=scenario
         )
 
     for port in tsn_config["GCL"]:
+        bridge = port.split("[")[1].split(",")[0]
+        for bridge_id in device_map:
+            if device_map[bridge_id]["name"] == bridge:
+                break
+
+        if talker_delay != "0s" and device_map[bridge_id]["type"] == 0:
+            continue
+
         for queue in tsn_config["GCL"][port]:
             assert tsn_config["GCL"][port][queue]["initial"] == 0
-
-            bridge = port.split("[")[1].split(",")[0]
-            for bridge_id in device_map:
-                if device_map[bridge_id]["name"] == bridge:
-                    break
 
             iface = device_map[bridge_id]["ifaces"].index(
                 port.split(",")[1].split("]")[0]
@@ -442,18 +471,42 @@ def build_ini_file(
             )
 
     has_mkfirm_streams = "MK_FIRM_PSFP" in tsn_config
-    ini_bridges += psfp_ini_header
+    if skip_factor:
+        ini_bridges += psfp_ini_header.format(t="SkipFactorIeee8021qFilter")
+    else:
+        ini_bridges += psfp_ini_header.format(t="MKFirmIeee8021qFilter")
 
     for device in tsn_config["PSFP"]:
 
-        def gates_fmt(id, open, close, period, octet_limit):
-            offset = period - close
-            durations = ", ".join(
-                [
-                    f"{(offset+open)/1e6}ms",
-                    f"{(close-open)/1e6}ms",
-                ]
+        psfp_frame_entries = []
+
+        def gates_fmt(id, open, close, octet_limit):
+            durations, offset = absolute_to_relative_gcl([open, close], hyper_period_ns)
+
+            return gate_t.format(
+                device=device,
+                id=id,
+                durations=durations,
+                offset=offset / 1e6,
+                octet_limit=octet_limit,
             )
+
+        def mkfirm_gates_fmt(id, open, close, period, mask, mask_offset, octet_limit):
+            opening_times = []
+            hp = math.lcm(hyper_period_ns, period * len(mask))
+
+            for i in range(int(hp / hyper_period_ns)):
+                if (
+                    mask[int(i * hyper_period_ns / period + mask_offset) % len(mask)]
+                    == "1"
+                ):
+                    opening_times.append(open)
+                    opening_times.append(close)
+                open += hyper_period_ns
+                close += hyper_period_ns
+
+            durations, offset = absolute_to_relative_gcl(opening_times, hp)
+
             return gate_t.format(
                 device=device,
                 id=id,
@@ -464,10 +517,13 @@ def build_ini_file(
 
         def add_psfp_entry(entry, entry_type, frame):
             stream_name = frame.split("#")[0]
-            frame_id = int(frame.split("#")[1])
+            offset = int(frame.split("#")[1])
             stream = [s for s in streams if s["name"] == stream_name][0]
-            frame_id = frame_id % len(stream["ports"])
+            frame_id = offset % len(stream["ports"])
             frame = f"{stream_name}-{frame_id}"
+            if frame in psfp_frame_entries:
+                return False
+
             decoder = nts_map.format(
                 dest_port=stream["ports"][frame_id],
                 frame=frame,
@@ -480,17 +536,20 @@ def build_ini_file(
                     n,
                     entry["open"],
                     entry["close"],
-                    1e6 * hyper_period,
                     stream["frame_size"],
                 )
             else:
-                gates[entry_type] += gates_fmt(
+                psfp_frame_entries.append(frame)
+                gates[entry_type] += mkfirm_gates_fmt(
                     n,
                     entry["open"],
                     entry["close"],
-                    stream["period"] * len(stream["mk_firm"]["mask"]),
+                    stream["period"],
+                    stream["mk_firm"]["mask"],
+                    offset,
                     stream["frame_size"],
                 )
+            return True
 
         n = 0
         nts = []
@@ -508,8 +567,8 @@ def build_ini_file(
         if has_mkfirm_streams and device in tsn_config["MK_FIRM_PSFP"]:
             for mkfirm_psfp_entry in tsn_config["MK_FIRM_PSFP"][device]:
                 for frame in mkfirm_psfp_entry["frames"]:
-                    add_psfp_entry(mkfirm_psfp_entry, "mk_firm", frame)
-                    n += 1
+                    if add_psfp_entry(mkfirm_psfp_entry, "mk_firm", frame):
+                        n += 1
 
         ini_bridges += psfp_ini.format(
             device=device,
@@ -518,12 +577,47 @@ def build_ini_file(
             stream_to_gate_mapping=", ".join(stg["default"]),
             gates=gates["default"],
         )
-        ini_bridges += mkfirm_psfp_ini.format(
-            device=device,
-            num_streams=n - default_streams,
-            stream_to_gate_mapping=", ".join(stg["mk_firm"]),
-            gates=gates["mk_firm"],
-        )
+        if has_mkfirm_streams:
+            ini_bridges += mkfirm_psfp_ini.format(
+                device=device,
+                num_streams=n - default_streams,
+                stream_to_gate_mapping=", ".join(stg["mk_firm"]),
+                gates=gates["mk_firm"],
+            )
+
+    if skip_factor and not has_mkfirm_streams:
+        skip_factor_map = {}
+        period_map = {}
+
+        for s in streams:
+            if "mk_firm" not in s:
+                continue
+
+            for _, d in s["route"][:-1]:
+                device = device_map[d]["name"]
+                if device not in skip_factor_map:
+                    skip_factor_map[device] = {}
+                    period_map[device] = {}
+
+                skip_factor_map[device][s["name"]] = s["mk_firm"]["mask"].count("1")
+                period_map[device][s["name"]] = s["period"]
+
+        for device in skip_factor_map:
+            ini_bridges += skipfactor_psfp_ini.format(
+                device=device,
+                skip_factor=", ".join(
+                    [
+                        fl_map.format(id=s, value=v)
+                        for s, v in skip_factor_map[device].items()
+                    ]
+                ),
+                period=", ".join(
+                    [
+                        fl_map.format(id=s, value=f"{p}ns")
+                        for s, p in period_map[device].items()
+                    ]
+                ),
+            )
 
     ini = omnetpp_ini.format(
         header=ini,
@@ -572,6 +666,12 @@ def main(raw_args=None):
         action="store_true",
         help="randomly sample delays at talker and 5G links differently from known histograms",
     )
+    parser.add_argument(
+        "--skip_factor",
+        action="store_true",
+        help="use skip factor instead of preconfigured mu-patterns",
+    )
+    parser.add_argument("--talker_delay", default="0s")
 
     args = parser.parse_args(raw_args)
 
@@ -595,6 +695,8 @@ def main(raw_args=None):
         args.repetitions,
         args.histogram_directory,
         args.delay_outliers,
+        args.skip_factor,
+        args.talker_delay,
     )
 
 

@@ -310,6 +310,69 @@ def stream_analysis(topology, streams):
             wired_stream_analysis(topology, stream, test_cases)
 
 
+def stream_reliability(topology, stream, path):
+    files = [f for f in os.listdir(path) if stream["name"] in f]
+
+    count = [0, 0]
+    for file in files:
+        with open(os.path.join(path, file)) as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            for row in csv_reader:
+                if (
+                    float(row["E2E Delay"]) >= 0
+                    and float(row["E2E Delay"]) <= stream["stable_qos"]["latency"] / 1e6
+                ):
+                    count[0] += 1
+                count[1] += 1
+
+    return count[0] / count[1]
+
+
+def stream_whrt_violations(topology, stream, path):
+    files = [f for f in os.listdir(path) if stream["name"] in f]
+
+    m = stream["mk_firm"]["mask"].count("1")
+    k = len(stream["mk_firm"]["mask"])
+
+    sliding_window = []
+    count = 0
+
+    for file in files:
+        with open(os.path.join(path, file)) as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            for row in csv_reader:
+                violation = (
+                    float(row["E2E Delay"]) < 0
+                    or float(row["E2E Delay"]) > stream["mk_firm"]["latency"] / 1e6
+                )
+                sliding_window.append(violation)
+                if len(sliding_window) > k:
+                    sliding_window.pop(0)
+
+                if len(sliding_window) == k and sliding_window.count(False) < m:
+                    count += 1
+
+    return count
+
+
+def reliability(topology, streams, path):
+    directories = [f.path for f in os.scandir(path) if f.is_dir()]
+
+    print(
+        "Disclaimer: WHRT violations are unconditional (i.e., the printed number contains also occurances where the 5G delay would already exceed the E2E latency requirement)"
+    )
+
+    for directory in directories:
+        print(directory)
+        for stream in streams:
+            rel = stream_reliability(topology, stream, directory)
+            if "mk_firm" in stream:
+                violations = stream_whrt_violations(topology, stream, directory)
+                print(stream["name"], rel, violations)
+            else:
+                print(stream["name"], rel)
+
+
 def main(raw_args=None):
     parser = argparse.ArgumentParser(
         prog="python scripts/omnetpp_pcap_analysis.py",
@@ -339,9 +402,18 @@ def main(raw_args=None):
     subparser2.add_argument("-t", "--topology_input", default="data/network.json")
     subparser2.add_argument("-s", "--streams_input", default="data/streams.json")
 
-    subparsers.add_parser(
-        "violations",
+    subparser3 = subparsers.add_parser(
+        "reliability",
         help="Analyze total and conditional end-to-end QoS violations (conditional excludes cases where the 5GS already violates its PDB).",
+    )
+    subparser3.add_argument(
+        "-t", "--topology_input", default="data/skipfactor_simulations/network.json"
+    )
+    subparser3.add_argument(
+        "-s", "--streams_input", default="data/skipfactor_simulations/streams.json"
+    )
+    subparser3.add_argument(
+        "-d", "--directory", default="data/skipfactor_simulations/csv"
     )
 
     args = parser.parse_args(raw_args)
@@ -364,6 +436,10 @@ def main(raw_args=None):
         topology = parse_json_file(args.topology_input)
         streams = parse_json_file(args.streams_input)
         stream_analysis(topology, streams)
+    elif args.subroutine == "reliability":
+        topology = parse_json_file(args.topology_input)
+        streams = parse_json_file(args.streams_input)
+        reliability(topology, streams, args.directory)
 
 
 if __name__ == "__main__":

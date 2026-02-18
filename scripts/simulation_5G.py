@@ -1,6 +1,7 @@
 from agv_network_builder import main as benchmark_builder
 from omnetpp_generator import main as omnetpp_generator, STREAM_TO_MODULE_MAP
 from omnetpp_pcap_analysis import main as pcap_analysis
+import agv_network_builder as agv
 import subprocess
 import shutil
 import os
@@ -12,10 +13,38 @@ import pandas as pd
 from omnetpp.scave import results
 from multiprocessing import Process
 
+# Benchmark Parameters
 AGV_WT_OUT = 40
 AGV_WT_IN = 40
 AGV_CT = 10
 CORE_CT = 10
+
+agv.DATA_RATE = 100000000  # 100Mbps
+agv.PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
+agv.PROCESSING_DELAY = 0
+
+agv.CT_TYPES = 1
+agv.CT_PERIOD = [5000000]
+agv.CT_PHASE = [0]
+agv.CT_FRAMESIZE = [100]
+agv.CT_E2E_LATENCY = [500000]
+agv.CT_JITTER = [0]
+agv.CT_PCP = [6]
+
+agv.WT_TYPES = 4
+agv.WT_RANDOM_WEIGHTS = [3, 1, 1, 1]
+agv.WT_PERIOD = [20000000, 20000000, 20000000, 20000000]
+agv.WT_PHASE = [0, 0, 0, 0]
+agv.WT_FRAMESIZE = [100, 100, 100, 100]
+agv.WT_STABLE_LATENCY = [20000000, 20000000, 20000000, 20000000]
+agv.WT_STABLE_JITTER = [0, 0, 0, 0]
+agv.WT_MK_FIRM_MASK = ["000", "100", "010", "001"]
+agv.WT_MK_FIRM_LATENCY = [20000000, 20000000, 20000000, 20000000]
+agv.WT_PCP = [5, 5, 5, 5]
+
+agv.WT_RELIABILITY = [0.99, 0.99, 0.99, 0.99]
+agv.WT_RTI_POLICY = "minimize_dmax"
+agv.STREAM_OBJECTIVE = "tardiness"
 
 REPETITIONS = 1000
 SIM_TIME = 20  # 20s = 1000 hypercycles
