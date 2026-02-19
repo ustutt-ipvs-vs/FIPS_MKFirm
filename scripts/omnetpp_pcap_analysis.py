@@ -364,13 +364,34 @@ def reliability(topology, streams, path):
 
     for directory in directories:
         print(directory)
-        for stream in streams:
-            rel = stream_reliability(topology, stream, directory)
-            if "mk_firm" in stream:
-                violations = stream_whrt_violations(topology, stream, directory)
-                print(stream["name"], rel, violations)
-            else:
-                print(stream["name"], rel)
+        with open(os.path.join(directory, f"summary.csv"), "w") as csv_file:
+            writer = csv.DictWriter(
+                csvfile,
+                fieldnames=["stream", "reliability", "(m,k)-firm violations"],
+            )
+            writer.writeheader()
+
+            for stream in streams:
+                rel = stream_reliability(topology, stream, directory)
+                if "mk_firm" in stream:
+                    violations = stream_whrt_violations(topology, stream, directory)
+                    print(stream["name"], rel, violations)
+                    writer.writerow(
+                        {
+                            "stream": stream["name"],
+                            "reliability": rel,
+                            "(m,k)-firm violations": violations,
+                        }
+                    )
+                else:
+                    print(stream["name"], rel)
+                    writer.writerow(
+                        {
+                            "stream": stream["name"],
+                            "reliability": rel,
+                            "(m,k)-firm violations": -1,
+                        }
+                    )
 
 
 def main(raw_args=None):
@@ -399,8 +420,12 @@ def main(raw_args=None):
     subparser2 = subparsers.add_parser(
         "analyze", help="Analyze single stream from csv files"
     )
-    subparser2.add_argument("-t", "--topology_input", default="data/network.json")
-    subparser2.add_argument("-s", "--streams_input", default="data/streams.json")
+    subparser2.add_argument(
+        "-t", "--topology_input", default="data/mkfirm_simulations/network.json"
+    )
+    subparser2.add_argument(
+        "-s", "--streams_input", default="data/mkfirm_simulations/streams.json"
+    )
 
     subparser3 = subparsers.add_parser(
         "reliability",
