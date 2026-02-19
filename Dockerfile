@@ -16,7 +16,7 @@ ENV CXX=/usr/local/bin/g++
 
 RUN mkdir /usr/src/fips/release && \
     cd /usr/src/fips/release && \
-    cmake -DNDEBUG .. && \
+    cmake .. && \
     make -j
 
 CMD ["/bin/bash"]
