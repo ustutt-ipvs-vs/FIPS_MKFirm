@@ -14,13 +14,13 @@ from omnetpp.scave import results
 from multiprocessing import Process
 
 # Benchmark Parameters
-AGV_WT_OUT = 5
-AGV_WT_IN = 5
-AGV_CT = 5
-CORE_CT = 5
+AGV_WT_OUT = 40
+AGV_WT_IN = 40
+AGV_CT = 10
+CORE_CT = 10
 
-WT_RELIABILITY = 0.5
-TALKER_RELIABILITY = 0.5
+WT_RELIABILITY = 0.999
+TALKER_RELIABILITY = 0.999
 
 agv.DATA_RATE = 100000000  # 100Mbps
 agv.PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
@@ -49,15 +49,13 @@ agv.WT_RELIABILITY = [WT_RELIABILITY] * agv.WT_TYPES
 agv.WT_RTI_POLICY = "minimize_dmax"
 agv.STREAM_OBJECTIVE = "tardiness"
 
-REPETITIONS = 1
+REPETITIONS = 1000
 SIM_TIME = 20  # 20s = 1000 hypercycles
-SIM_BATCHES = 1  # run X repetitions of each simulation in parallel
+SIM_BATCHES = 25  # run X repetitions of each simulation in parallel
 
 PACKAGE_NAME = "skip_factor"
-# D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
-# INET_PATH = "/usr/src/omnetpp/workspace/inet"
-D6G_PATH = "/home/eggersn/workspaces/deterministic6g_workspace/deterministic6g"
-INET_PATH = "/home/eggersn/workspaces/deterministic6g_workspace/inet"
+D6G_PATH = "/usr/src/omnetpp/workspace/deterministic6g"
+INET_PATH = "/usr/src/omnetpp/workspace/inet"
 
 SIMULATIONS = ["skipfactor_configuration", "mkfirm_configuration"]
 STREAM_TO_APPS = {t: {} for t in SIMULATIONS}
