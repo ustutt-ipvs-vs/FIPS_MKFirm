@@ -370,7 +370,7 @@ def reliability(topology, streams, path):
         print(directory)
         with open(os.path.join(directory, f"summary.csv"), "w") as csv_file:
             writer = csv.DictWriter(
-                csvfile,
+                csv_file,
                 fieldnames=[
                     "x",
                     "stream",
@@ -387,12 +387,12 @@ def reliability(topology, streams, path):
                     violations, elevations = stream_whrt_violations(
                         topology, stream, directory
                     )
-                    print(stream["name"], rel, violations)
+                    print(stream["name"], rel, violations, elevations)
                     writer.writerow(
                         {
                             "x": x,
                             "stream": stream["name"],
-                            "reliability": 100 * rel,
+                            "reliability": rel,
                             "(m,k)-firm violations": violations,
                             "elevations": elevations,
                         }
@@ -403,7 +403,7 @@ def reliability(topology, streams, path):
                         {
                             "x": x,
                             "stream": stream["name"],
-                            "reliability": 100 * rel,
+                            "reliability": rel,
                         }
                     )
 

@@ -562,12 +562,13 @@ def build_ini_file(
                 add_psfp_entry(psfp_entry, "default", frame)
                 n += 1
 
-        if skip_factor:
-            continue
-
         # add entries for (m,k)-firm streams
         default_streams = n
-        if has_mkfirm_streams and device in tsn_config["MK_FIRM_PSFP"]:
+        if (
+            not skip_factor
+            and has_mkfirm_streams
+            and device in tsn_config["MK_FIRM_PSFP"]
+        ):
             for mkfirm_psfp_entry in tsn_config["MK_FIRM_PSFP"][device]:
                 for frame in mkfirm_psfp_entry["frames"]:
                     if add_psfp_entry(mkfirm_psfp_entry, "mk_firm", frame):
@@ -580,7 +581,8 @@ def build_ini_file(
             stream_to_gate_mapping=", ".join(stg["default"]),
             gates=gates["default"],
         )
-        if has_mkfirm_streams:
+
+        if not skip_factor and has_mkfirm_streams:
             ini_bridges += mkfirm_psfp_ini.format(
                 device=device,
                 num_streams=n - default_streams,
