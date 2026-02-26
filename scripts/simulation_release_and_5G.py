@@ -19,8 +19,9 @@ AGV_WT_IN = 40
 AGV_CT = 10
 CORE_CT = 10
 
-WT_RELIABILITY = 0.999
-TALKER_RELIABILITY = 0.999
+# approx. an E2E reliabilty of 0.995^2 = 99%
+WT_RELIABILITY = 0.995
+TALKER_RELIABILITY = 0.995
 
 agv.DATA_RATE = 100000000  # 100Mbps
 agv.PROPAGATION_DELAY = 50  # 50ns (~10m Ethernet cable)
@@ -35,7 +36,7 @@ agv.CT_JITTER = [0]
 agv.CT_PCP = [6]
 
 agv.WT_TYPES = 4
-agv.WT_RANDOM_WEIGHTS = [0, 1, 1, 1]
+agv.WT_RANDOM_WEIGHTS = [3, 1, 1, 1]
 agv.WT_PERIOD = [20000000] * agv.WT_TYPES
 agv.WT_PHASE = [0] * agv.WT_TYPES
 agv.WT_FRAMESIZE = [100] * agv.WT_TYPES
@@ -105,7 +106,7 @@ def generate_omnetini(t=""):
         "-s",
         "data/skipfactor_simulations/streams.json",
         "-g",
-        f"data/skipfactor_simulations/{t}.json",
+        "data/skipfactor_simulations/augmented_fips_config.json",
         "-ned",
         "data/skipfactor_simulations/network.ned",
         "-ini",
@@ -145,9 +146,9 @@ def generate_full_omnetini():
             "-s",
             "../data/skipfactor_simulations/streams.json",
             "--output_normal",
-            "../data/skipfactor_simulations/skipfactor_configuration.json",
+            "../data/skipfactor_simulations/fips_config.json",
             "--output_mkfirm",
-            "../data/skipfactor_simulations/mkfirm_configuration.json",
+            "../data/skipfactor_simulations/augmented_fips_config.json",
         ],
         stdout=subprocess.PIPE,
     )

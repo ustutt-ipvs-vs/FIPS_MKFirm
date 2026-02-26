@@ -325,7 +325,7 @@ def stream_reliability(topology, stream, path):
                     count[0] += 1
                 count[1] += 1
 
-    return count[0] / count[1]
+    return 100 * (count[0] / count[1])
 
 
 def stream_whrt_violations(topology, stream, path):
@@ -336,6 +336,7 @@ def stream_whrt_violations(topology, stream, path):
 
     sliding_window = []
     count = 0
+    elevation_count = 0
 
     for file in files:
         with open(os.path.join(path, file)) as csv_file:
@@ -352,7 +353,10 @@ def stream_whrt_violations(topology, stream, path):
                 if len(sliding_window) == k and sliding_window.count(False) < m:
                     count += 1
 
-    return count
+                if int(row["Max PCP"]) == 7:
+                    elevation_count += 1
+
+    return count, elevation_count
 
 
 def reliability(topology, streams, path):
@@ -367,29 +371,39 @@ def reliability(topology, streams, path):
         with open(os.path.join(directory, f"summary.csv"), "w") as csv_file:
             writer = csv.DictWriter(
                 csvfile,
-                fieldnames=["stream", "reliability", "(m,k)-firm violations"],
+                fieldnames=[
+                    "x",
+                    "stream",
+                    "reliability",
+                    "(m,k)-firm violations",
+                    "elevations",
+                ],
             )
             writer.writeheader()
 
-            for stream in streams:
+            for x, stream in enumerate(streams):
                 rel = stream_reliability(topology, stream, directory)
                 if "mk_firm" in stream:
-                    violations = stream_whrt_violations(topology, stream, directory)
+                    violations, elevations = stream_whrt_violations(
+                        topology, stream, directory
+                    )
                     print(stream["name"], rel, violations)
                     writer.writerow(
                         {
+                            "x": x,
                             "stream": stream["name"],
-                            "reliability": rel,
+                            "reliability": 100 * rel,
                             "(m,k)-firm violations": violations,
+                            "elevations": elevations,
                         }
                     )
                 else:
                     print(stream["name"], rel)
                     writer.writerow(
                         {
+                            "x": x,
                             "stream": stream["name"],
-                            "reliability": rel,
-                            "(m,k)-firm violations": -1,
+                            "reliability": 100 * rel,
                         }
                     )
 

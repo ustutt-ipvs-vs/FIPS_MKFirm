@@ -63,3 +63,4 @@ Afterwards, you have to mount both `./data` and `./scripts` and can run the simu
 $ podman run -v ./data:/usr/src/fips/data -v ./scripts:/usr/src/fips/scripts -it mkfirm_fips
 /usr/src/fips# python scripts/simulation_release_and_5G.py
 ```
+The results of the simulation are now available under `./data/skipfactor_simulations/csv`.

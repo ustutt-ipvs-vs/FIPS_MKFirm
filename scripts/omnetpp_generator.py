@@ -562,6 +562,9 @@ def build_ini_file(
                 add_psfp_entry(psfp_entry, "default", frame)
                 n += 1
 
+        if skip_factor:
+            continue
+
         # add entries for (m,k)-firm streams
         default_streams = n
         if has_mkfirm_streams and device in tsn_config["MK_FIRM_PSFP"]:
@@ -585,7 +588,7 @@ def build_ini_file(
                 gates=gates["mk_firm"],
             )
 
-    if skip_factor and not has_mkfirm_streams:
+    if skip_factor:
         skip_factor_map = {}
         period_map = {}
 
