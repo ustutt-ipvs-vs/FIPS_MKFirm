@@ -1,0 +1,58 @@
+{
+  "creators": [
+    {
+      "name": "Egger, Simon",
+      "orcid": "0009-0007-9583-6044",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Laidig, Robin",
+      "orcid": "0009-0001-8600-5579",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Geppert, Heiko",
+      "orcid": "0000-0002-5146-0184",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Haug, Lucas",
+      "orcid": "0009-0003-7800-0836",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Herrmann, Jona",
+      "orcid": "0009-0009-9786-5505",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Dürr, Frank",
+      "orcid": "0000-0002-3470-7712",
+      "affiliation": "University of Stuttgart"
+    },
+    {
+      "name": "Becker, Christian",
+      "orcid": "0000-0002-9036-1410",
+      "affiliation": "University of Stuttgart"
+    }
+  ],
+  "contributors": [],
+  "title": "FIPS + (m,k)-firm Elevation Policy",
+  "version": "v1.0",
+  "access_right": "open",
+  "related_identifiers": [],
+  "keywords": [],
+  "license": "mit",
+  "upload_type": "software",
+  "language": "eng",
+  "grants": [
+    {
+      "id": "101096504"
+    }
+  ],
+  "communities": [
+    {
+      "identifier": "5g-tsn_mkfirm"
+    }
+  ]
+}

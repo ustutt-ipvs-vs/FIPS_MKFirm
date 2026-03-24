@@ -1,4 +1,4 @@
-FROM gitlab-vs.informatik.uni-stuttgart.de:5050/emergency_traffic/d6g:latest
+FROM ghcr.io/ustutt-ipvs-vs/6gdetcom_mkfirm:latest
 
 COPY . /usr/src/fips
 
