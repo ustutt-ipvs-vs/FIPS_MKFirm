@@ -8,8 +8,8 @@ This is the recommended way of deployment if you simply want to reproduce the ev
 Start by pulling or building the image via:
 ```bash
 # Pull Image
-$ podman pull ghcr.io/ustutt-ipvs-vs/fips_mkfirm:v1.0
-$ podman tag ghcr.io/ustutt-ipvs-vs/fips_mkfirm:v1.0 mkfirm_fips
+$ podman pull ghcr.io/ustutt-ipvs-vs/fips_mkfirm:latest
+$ podman tag ghcr.io/ustutt-ipvs-vs/fips_mkfirm:latest mkfirm_fips
 
 # Build Image Manually (Alternative)
 $ podman built -t mkfirm_fips .
@@ -49,7 +49,6 @@ Naturally, we need to provide the scheduler with a network topology and the stre
 We generate these input files in the following:
 
 ## Building a Network and Creating Streams
-
 First, make sure you have all requirements installed, e.g., via
 ```bash
 $ python -m venv ./venv
@@ -120,7 +119,9 @@ They can also be further compressed to the same representation as in the paper, 
 ```bash
 /usr/src/fips# python scripts/omnetpp_pcap_analysis.py analyze
 ```
-The script prints the first observed (m,k)-firm violations, i.e., the 5G delay outliers that were observed for which the required E2E latency can no longer be upheld.
+Have a look at the plots provided in `./data/mkfirm_simulations/plots`.
+The left subplot shows our (m,k)-firm Elevation Policy, while the right subplot shows FIPS.
+Moreover, for streams with an (m,k)-firm deadline, the plot shows blue (\mu(f) = 0) and orange (\mu(f) = 1) frames, with the same semantic as in the paper.
 
 ## Scalability Results under different mu-Patterns (Section VI-D1)
 ```bash
@@ -130,17 +131,28 @@ $ podman run -v ./data:/usr/src/fips/data -it mkfirm_fips
 The script continuously prints the updated average of rejected streams per configuration.
 
 ## Simulation results (Section VI-D2: Talker Jitter + 5G Delay Outliers)
-You may want to change the configuration variables of `scripts/simulation_release_and_5G.py` to reduce the simulation time (same as above).
+You may want to change the configuration variables of `scripts/simulation_release_and_5G.py` to reduce the simulation time:
+```python
+REPETITIONS = 10
+SIM_TIME = 2  # 2s = 100 hypercycles
+SIM_BATCHES = 10  # run X repetitions of each simulation in parallel
+```
+Compared to the previous simulation, more repetitions are needed here to increase the chance for observing unintended packet loss.
+
 Afterwards, you have to mount both `./data` and `./scripts` and can run the simulation as follows
 ```bash
 $ podman run -v ./data:/usr/src/fips/data -v ./scripts:/usr/src/fips/scripts -it mkfirm_fips
 /usr/src/fips# python scripts/simulation_release_and_5G.py
 ```
+
 The results of the simulation are now available under `./data/skipfactor_simulations/csv`.
 They can also be further compressed to the same representation as in the paper, using
 ```bash
 /usr/src/fips# python scripts/omnetpp_pcap_analysis.py reliability
 ```
+
+For wireless streams *AGV0_CORE_XX* or *CORE_AGV0_XX*, the columns are (Stream Name, Reliability [%], (m,k)-firm Violations, No. Elevated Packets).
+You should be able to observe individual (m,k)-firm violations for DFA (*skipfactor_configuration*), but none for our (m,k)-firm Elevation Policy (*mkfirm_configuration*).
 
 # Library Usage Tutorial
 We provide a brief overview of how the library can be used.
