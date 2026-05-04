@@ -12,7 +12,7 @@ $ podman pull ghcr.io/ustutt-ipvs-vs/fips_mkfirm:latest
 $ podman tag ghcr.io/ustutt-ipvs-vs/fips_mkfirm:latest mkfirm_fips
 
 # Build Image Manually (Alternative)
-$ podman built -t mkfirm_fips .
+$ podman build -t mkfirm_fips .
 ```
 this will download the latest gcc docker image, install the required packages, and setup a python virtual environment.
 You can then open a shell in the container with
